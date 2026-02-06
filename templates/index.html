@@ -226,8 +226,12 @@
             <div class="form-group">
                 <label>Video Input</label>
                 <div class="file-input-wrapper">
-                    <input type="text" name="video" placeholder="video.mp4" required>
-                    <button type="button" class="btn-file" onclick="showFilePicker('clip', 'video', '.mp4')">📂</button>
+                    <input type="text" name="video" id="clip-video-text" placeholder="Pilih file video..." required
+                        readonly>
+                    <input type="file" id="clip-video-file" accept=".mp4,.webm,.mkv" style="display:none"
+                        onchange="handleFileSelect(this, 'clip-video-text')">
+                    <button type="button" class="btn-file"
+                        onclick="document.getElementById('clip-video-file').click()">📂 Browse</button>
                 </div>
             </div>
             <div class="form-row">
@@ -258,9 +262,12 @@
             <div class="form-group">
                 <label>File Subtitle (.vtt)</label>
                 <div class="file-input-wrapper">
-                    <input type="text" name="subtitle" placeholder="subtitle.vtt" required>
+                    <input type="text" name="subtitle" id="extract-subtitle-text" placeholder="Pilih file subtitle..."
+                        required readonly>
+                    <input type="file" id="extract-subtitle-file" accept=".vtt,.srt" style="display:none"
+                        onchange="handleFileSelect(this, 'extract-subtitle-text')">
                     <button type="button" class="btn-file"
-                        onclick="showFilePicker('extract', 'subtitle', '.vtt')">📂</button>
+                        onclick="document.getElementById('extract-subtitle-file').click()">📂 Browse</button>
                 </div>
             </div>
             <div class="form-row">
@@ -291,16 +298,23 @@
             <div class="form-group">
                 <label>Video Input</label>
                 <div class="file-input-wrapper">
-                    <input type="text" name="video" placeholder="video.mp4" required>
-                    <button type="button" class="btn-file" onclick="showFilePicker('burn', 'video', '.mp4')">📂</button>
+                    <input type="text" name="video" id="burn-video-text" placeholder="Pilih file video..." required
+                        readonly>
+                    <input type="file" id="burn-video-file" accept=".mp4,.webm,.mkv" style="display:none"
+                        onchange="handleFileSelect(this, 'burn-video-text')">
+                    <button type="button" class="btn-file"
+                        onclick="document.getElementById('burn-video-file').click()">📂 Browse</button>
                 </div>
             </div>
             <div class="form-group">
                 <label>File Subtitle (.srt)</label>
                 <div class="file-input-wrapper">
-                    <input type="text" name="subtitle" placeholder="subtitle.srt" required>
+                    <input type="text" name="subtitle" id="burn-subtitle-text" placeholder="Pilih file subtitle..."
+                        required readonly>
+                    <input type="file" id="burn-subtitle-file" accept=".srt" style="display:none"
+                        onchange="handleFileSelect(this, 'burn-subtitle-text')">
                     <button type="button" class="btn-file"
-                        onclick="showFilePicker('burn', 'subtitle', '.srt')">📂</button>
+                        onclick="document.getElementById('burn-subtitle-file').click()">📂 Browse</button>
                 </div>
             </div>
             <div class="form-group">

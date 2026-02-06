@@ -28,6 +28,18 @@ function clearConsole() {
     consoleOutput.className = '';
 }
 
+// Native file picker handler
+function handleFileSelect(fileInput, textInputId) {
+    const textInput = document.getElementById(textInputId);
+    if (fileInput.files.length > 0) {
+        // Get full path (for display) - browsers only give filename for security
+        const file = fileInput.files[0];
+        textInput.value = file.name;
+        // Store full path in data attribute (if available via webkitRelativePath)
+        textInput.dataset.fullPath = file.name;
+    }
+}
+
 // API call helper
 async function callApi(endpoint, data, button) {
     button.classList.add('loading');

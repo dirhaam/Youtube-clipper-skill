@@ -27,6 +27,27 @@ FFMPEG_PATH = os.getenv('FFMPEG_PATH', '')
 jobs = {}  # {job_id: {"status": "running/done/error", "step": 1, "output": "", "result": None}}
 
 
+def find_file_path(filename):
+    """Find file in results folder by filename. Returns full path or original filename."""
+    # If already a full path, return as-is
+    if Path(filename).is_absolute() or Path(filename).exists():
+        return filename
+    
+    # Search recursively in results folder
+    results_dir = BASE_DIR / 'results'
+    if results_dir.exists():
+        for file_path in results_dir.rglob(filename):
+            return str(file_path)
+    
+    # Search in BASE_DIR too
+    base_match = BASE_DIR / filename
+    if base_match.exists():
+        return str(base_match)
+    
+    # Return original (will cause error in script, but with better message)
+    return filename
+
+
 def run_script(script_name, args):
     """Run a Python script and return output"""
     cmd = ["py", str(SCRIPTS_DIR / script_name)] + args
@@ -113,6 +134,14 @@ def clip_video():
     if not all([video, start, end, output]):
         return jsonify({"success": False, "output": "Semua field harus diisi"})
     
+    # Find file in results folder if only filename provided
+    video = find_file_path(video)
+    
+    # Auto-save output in the same folder as input video
+    video_path = Path(video)
+    if video_path.exists() and not Path(output).is_absolute():
+        output = str(video_path.parent / output)
+    
     result = run_script("clip_video.py", [video, start, end, output])
     return jsonify(result)
 
@@ -129,6 +158,9 @@ def extract_subtitle():
     if not all([subtitle, start, end, output]):
         return jsonify({"success": False, "output": "Semua field harus diisi"})
     
+    # Find file in results folder if only filename provided
+    subtitle = find_file_path(subtitle)
+    
     result = run_script("extract_subtitle_clip.py", [subtitle, start, end, output])
     return jsonify(result)
 
@@ -144,6 +176,15 @@ def burn_subtitle():
     if not all([video, subtitle, output]):
         return jsonify({"success": False, "output": "Semua field harus diisi"})
     
+    # Find files in results folder if only filename is provided
+    video = find_file_path(video)
+    subtitle = find_file_path(subtitle)
+    
+    # Auto-save output in the same folder as input video
+    video_path = Path(video)
+    if video_path.exists() and not Path(output).is_absolute():
+        output = str(video_path.parent / output)
+    
     result = run_script("burn_subtitles.py", [video, subtitle, output])
     return jsonify(result)
 
@@ -151,12 +192,19 @@ def burn_subtitle():
 @app.route('/api/files', methods=['GET'])
 def list_files():
     """List files in directory"""
-    path = request.args.get('path', str(BASE_DIR))
+    path = request.args.get('path', '')
+    
+    # Default to results folder if no path specified
+    if not path or path == '':
+        path = str(BASE_DIR / 'results')
     
     try:
         target = Path(path)
+        
+        # If path doesn't exist, try results folder
         if not target.exists():
-            return jsonify({"success": False, "files": [], "error": "Path tidak ditemukan"})
+            target = BASE_DIR / 'results'
+            target.mkdir(parents=True, exist_ok=True)
         
         files = []
         for item in sorted(target.iterdir()):

@@ -30,18 +30,25 @@ def generate_chapters(vtt_file, api_key, model="gpt-4o", base_url="https://api.k
 
     # 3. Prompt
     prompt = """
-    Analyze the following VTT subtitle transcript.
-    Identify 10-15 distinct, interesting chapters or highlights that would make great short clips.
-    Focus on: funny moments, emotional moments, surprising reveals, key insights, or viral-worthy content.
+    Analyze the following VTT subtitle transcript carefully.
+    Identify 10-15 distinct, interesting chapters or highlights that would make great short clips for social media.
+    
+    IMPORTANT RULES:
+    1. Each clip MUST be at least 30-60 seconds long to capture full context
+    2. Include the COMPLETE conversation/story - don't cut in the middle of a sentence or idea
+    3. Start a few seconds BEFORE the interesting moment (for context)
+    4. End a few seconds AFTER the punchline/conclusion (for impact)
+    5. Focus on: funny moments, emotional moments, surprising reveals, key insights, or viral-worthy content
+    
     Return ONLY a raw JSON array. Do not use Markdown code blocks.
     
     Format:
     [
         {
-            "title": "Chapter Title",
+            "title": "Short catchy title for the clip",
             "start": "00:00:00",
-            "end": "00:00:00",
-            "reason": "Why this is interesting"
+            "end": "00:01:00",
+            "reason": "Why this segment is interesting and viral-worthy"
         }
     ]
 

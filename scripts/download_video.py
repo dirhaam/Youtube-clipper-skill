@@ -7,6 +7,7 @@
 import os
 import sys
 import json
+import shutil
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -78,9 +79,23 @@ def download_video(url: str, output_dir: str = None) -> dict:
         print(f"   🍪 Using cookies from: {cookie_file.name}")
 
     # 配置 yt-dlp 选项
+    # Format strategy:
+    # - If FFmpeg available: bestvideo+bestaudio (merged by FFmpeg)
+    # - If no FFmpeg: use pre-muxed format (has both video+audio in single stream)
+    has_ffmpeg = ffmpeg_path or shutil.which('ffmpeg')
+    
+    if has_ffmpeg:
+        # Best quality with FFmpeg merge
+        format_str = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+    else:
+        # Pre-muxed format (video+audio in one stream, no FFmpeg needed)
+        # Format 18 = 360p mp4, Format 22 = 720p mp4 (both have audio)
+        format_str = 'best[height<=720][ext=mp4]/best[ext=mp4]/best'
+        print("   ⚠️ FFmpeg not found - using pre-muxed format (may be lower quality)")
+    
     ydl_opts = {
-        # 视频格式：最高 1080p，优先 mp4
-        'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best',
+        # 视频格式
+        'format': format_str,
 
         # 输出模板：包含视频 ID（避免特殊字符问题）
         'outtmpl': str(output_dir / '%(id)s.%(ext)s'),
