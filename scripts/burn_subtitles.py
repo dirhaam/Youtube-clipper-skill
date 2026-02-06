@@ -126,7 +126,8 @@ def burn_subtitles(
     output_path: str,
     ffmpeg_path: str = None,
     font_size: int = 24,
-    margin_v: int = 30
+    margin_v: int = 30,
+    watermark_text: str = None
 ) -> str:
     """
     烧录字幕到视频（使用临时目录解决路径空格问题）
@@ -138,13 +139,10 @@ def burn_subtitles(
         ffmpeg_path: FFmpeg 可执行文件路径（可选）
         font_size: 字体大小，默认 24
         margin_v: 底部边距，默认 30
+        watermark_text: 水水印文本（可选）
 
     Returns:
         str: 输出视频路径
-
-    Raises:
-        FileNotFoundError: 输入文件不存在
-        RuntimeError: FFmpeg 执行失败
     """
     video_path = Path(video_path)
     subtitle_path = Path(subtitle_path)
@@ -174,6 +172,8 @@ def burn_subtitles(
     print(f"   视频: {video_path.name}")
     print(f"   字幕: {subtitle_path.name}")
     print(f"   输出: {output_path.name}")
+    if watermark_text:
+        print(f"   Watermark: {watermark_text}")
     print(f"   FFmpeg: {ffmpeg_path}")
 
     # 创建临时目录（解决路径空格问题）
@@ -192,25 +192,42 @@ def burn_subtitles(
 
         # 构建 FFmpeg 命令
         # 使用 subtitles 滤镜烧录字幕
-        subtitle_filter = f"subtitles={temp_subtitle}:force_style='FontSize={font_size},MarginV={margin_v}'"
+        filter_complex = f"subtitles=subtitle.srt:force_style='FontSize={font_size},MarginV={margin_v}'"
+        
+        # Add Watermark if provided
+        if watermark_text:
+            # Escape text for ffmpeg
+            safe_text = watermark_text.replace(":", "\\:").replace("'", "'")
+            
+            # drawtext filter: 
+            # Position: Center (x=(w-text_w)/2, y=(h-text_h)/2)
+            # Size: 50 (Large)
+            # Color: White 30% opacity (0.3) to be subtle but visible
+            # Shadow: Black, offset 3px
+            watermark_filter = f"drawtext=text='{safe_text}':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=50:fontcolor=white@0.3:shadowcolor=black@0.5:shadowx=3:shadowy=3"
+            filter_complex = f"{filter_complex},{watermark_filter}"
 
+        # 注意：这里使用相对路径，稍后会在 cwd=temp_dir 下运行
         cmd = [
             ffmpeg_path,
-            '-i', temp_video,
-            '-vf', subtitle_filter,
-            '-c:a', 'copy',  # 音频直接复制，不重新编码
-            '-y',  # 覆盖输出文件
-            temp_output
+            '-i', 'video.mp4',       # 输入文件（相对路径）
+            '-vf', filter_complex,
+            '-c:a', 'copy',          # 音频直接复制
+            '-y',                    # 覆盖输出
+            'output.mp4'             # 输出文件（相对路径）
         ]
+
 
         print(f"   执行 FFmpeg...")
         print(f"   命令: {' '.join(cmd)}")
 
         # 执行 FFmpeg
+        #关键修复：在临时目录下运行，避免路径问题
         result = subprocess.run(
             cmd,
             capture_output=True,
-            text=True
+            text=True,
+            cwd=temp_dir  # 在临时目录下执行
         )
 
         if result.returncode != 0:
@@ -264,14 +281,22 @@ def main():
     output_path = sys.argv[3]
     font_size = int(sys.argv[4]) if len(sys.argv) > 4 else 24
     margin_v = int(sys.argv[5]) if len(sys.argv) > 5 else 30
+    watermark_text = sys.argv[6] if len(sys.argv) > 6 else None
+
+    # 加载环境变量
+    from dotenv import load_dotenv
+    load_dotenv()
+    ffmpeg_path = os.getenv('FFMPEG_PATH')
 
     try:
         result_path = burn_subtitles(
             video_path,
             subtitle_path,
             output_path,
+            ffmpeg_path=ffmpeg_path,
             font_size=font_size,
-            margin_v=margin_v
+            margin_v=margin_v,
+            watermark_text=watermark_text
         )
 
         print(f"\n✨ 完成！输出文件: {result_path}")

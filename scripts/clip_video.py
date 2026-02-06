@@ -5,6 +5,7 @@
 """
 
 import sys
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -221,8 +222,13 @@ def main():
     end_time = sys.argv[3]
     output_path = sys.argv[4]
 
+    # 加载环境变量
+    from dotenv import load_dotenv
+    load_dotenv()
+    ffmpeg_path = os.getenv('FFMPEG_PATH')
+
     try:
-        result_path = clip_video(video_path, start_time, end_time, output_path)
+        result_path = clip_video(video_path, start_time, end_time, output_path, ffmpeg_path=ffmpeg_path)
         print(f"\n✨ 完成！输出文件: {result_path}")
 
     except Exception as e:

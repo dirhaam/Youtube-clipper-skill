@@ -1,0 +1,276 @@
+"""
+YouTube Clipper - Web GUI
+Flask backend for running video processing scripts
+"""
+
+import os
+import subprocess
+import json
+from pathlib import Path
+from flask import Flask, render_template, request, jsonify
+
+app = Flask(__name__)
+
+# Base directory
+BASE_DIR = Path(__file__).parent.resolve()
+SCRIPTS_DIR = BASE_DIR / "scripts"
+
+# Get FFmpeg path from .env
+from dotenv import load_dotenv
+load_dotenv()
+FFMPEG_PATH = os.getenv('FFMPEG_PATH', '')
+
+
+def run_script(script_name, args):
+    """Run a Python script and return output"""
+    cmd = ["py", str(SCRIPTS_DIR / script_name)] + args
+    
+    # Force UTF-8 encoding for Python subprocess
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',  # Explicitly read output as utf-8
+            env=env,           # Pass env with UTF-8 setting
+            timeout=300        # 5 minute timeout
+        )
+        return {
+            "success": result.returncode == 0,
+            "output": result.stdout + result.stderr,
+            "returncode": result.returncode
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "output": "Timeout: proses terlalu lama", "returncode": -1}
+    except Exception as e:
+        return {"success": False, "output": str(e), "returncode": -1}
+
+
+@app.route('/')
+def index():
+    """Serve main page"""
+    return render_template('index.html')
+
+
+@app.route('/api/download', methods=['POST'])
+def download_video():
+    """Download video from URL"""
+    data = request.json
+    url = data.get('url', '')
+    if not url:
+        return jsonify({"success": False, "output": "URL tidak boleh kosong"})
+    
+    result = run_script("download_video.py", [url])
+    return jsonify(result)
+
+
+@app.route('/api/download-subtitle', methods=['POST'])
+def download_subtitle():
+    """Download subtitle only"""
+    data = request.json
+    url = data.get('url', '')
+    lang = data.get('lang', 'id')
+    auto = str(data.get('auto', True))
+    
+    if not url:
+        return jsonify({"success": False, "output": "URL tidak boleh kosong"})
+    
+    result = run_script("download_subtitle.py", [url, lang, auto])
+    return jsonify(result)
+
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_subtitle():
+    """Analyze subtitle file"""
+    data = request.json
+    subtitle_file = data.get('file', '')
+    if not subtitle_file:
+        return jsonify({"success": False, "output": "File subtitle tidak boleh kosong"})
+    
+    result = run_script("analyze_subtitles.py", [subtitle_file])
+    return jsonify(result)
+
+
+@app.route('/api/clip', methods=['POST'])
+def clip_video():
+    """Clip video segment"""
+    data = request.json
+    video = data.get('video', '')
+    start = data.get('start', '')
+    end = data.get('end', '')
+    output = data.get('output', '')
+    
+    if not all([video, start, end, output]):
+        return jsonify({"success": False, "output": "Semua field harus diisi"})
+    
+    result = run_script("clip_video.py", [video, start, end, output])
+    return jsonify(result)
+
+
+@app.route('/api/extract-subtitle', methods=['POST'])
+def extract_subtitle():
+    """Extract subtitle clip"""
+    data = request.json
+    subtitle = data.get('subtitle', '')
+    start = data.get('start', '')
+    end = data.get('end', '')
+    output = data.get('output', '')
+    
+    if not all([subtitle, start, end, output]):
+        return jsonify({"success": False, "output": "Semua field harus diisi"})
+    
+    result = run_script("extract_subtitle_clip.py", [subtitle, start, end, output])
+    return jsonify(result)
+
+
+@app.route('/api/burn', methods=['POST'])
+def burn_subtitle():
+    """Burn subtitle to video"""
+    data = request.json
+    video = data.get('video', '')
+    subtitle = data.get('subtitle', '')
+    output = data.get('output', '')
+    
+    if not all([video, subtitle, output]):
+        return jsonify({"success": False, "output": "Semua field harus diisi"})
+    
+    result = run_script("burn_subtitles.py", [video, subtitle, output])
+    return jsonify(result)
+
+
+@app.route('/api/files', methods=['GET'])
+def list_files():
+    """List files in directory"""
+    path = request.args.get('path', str(BASE_DIR))
+    
+    try:
+        target = Path(path)
+        if not target.exists():
+            return jsonify({"success": False, "files": [], "error": "Path tidak ditemukan"})
+        
+        files = []
+        for item in sorted(target.iterdir()):
+            if item.name.startswith('.'):
+                continue
+            files.append({
+                "name": item.name,
+                "path": str(item),
+                "is_dir": item.is_dir(),
+                "size": item.stat().st_size if item.is_file() else 0,
+                "ext": item.suffix.lower() if item.is_file() else ""
+            })
+        
+        return jsonify({
+            "success": True,
+            "current_path": str(target),
+            "parent_path": str(target.parent) if target != target.parent else None,
+            "files": files
+        })
+    except Exception as e:
+        return jsonify({"success": False, "files": [], "error": str(e)})
+
+
+@app.route('/api/move', methods=['POST'])
+def move_file():
+    """Move or rename file"""
+    data = request.json
+    src = data.get('src', '')
+    dst = data.get('dst', '')
+    
+    try:
+        Path(src).rename(dst)
+        return jsonify({"success": True, "message": f"File dipindahkan ke {dst}"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route('/api/delete', methods=['POST'])
+def delete_file():
+    """Delete file"""
+    data = request.json
+    file_path = data.get('path', '')
+    
+    try:
+        target = Path(file_path)
+        if target.is_file():
+            target.unlink()
+            return jsonify({"success": True, "message": "File dihapus"})
+        else:
+            return jsonify({"success": False, "message": "Hanya bisa hapus file, bukan folder"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route('/api/open-folder', methods=['POST'])
+def open_folder():
+    """Open folder in Windows Explorer"""
+    data = request.json
+    folder = data.get('path', str(BASE_DIR))
+    
+    try:
+        subprocess.Popen(['explorer', folder])
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route('/api/auto-map', methods=['POST'])
+def auto_map_chapters():
+    """Generate chapters using AI"""
+    data = request.json
+    vtt_file = data.get('file', '')
+    api_key = data.get('api_key', '')
+    model = data.get('model', 'gemini-2.0-flash') 
+    
+    # Fallback to .env API Key
+    if not api_key:
+        api_key = os.getenv('KIE_API_KEY', '')
+
+    if not vtt_file or not api_key:
+        return jsonify({"success": False, "output": "File dan API Key harus diisi (atau set KIE_API_KEY di .env)"})
+    
+    # Run auto_mapper.py
+    result = run_script("auto_mapper.py", [vtt_file, api_key, model])
+    
+    # Parse the output which is in JSON format printed to stdout
+    try:
+        output_json = json.loads(result['output'])
+        return jsonify(output_json)
+    except Exception:
+        return jsonify(result)
+
+
+@app.route('/api/full-auto', methods=['POST'])
+def full_automation():
+    """Run full automation pipeline"""
+    data = request.json
+    url = data.get('url', '')
+    api_key = data.get('api_key', '')
+    model = data.get('model', 'gemini-2.0-flash')
+    watermark = data.get('watermark', '')
+    
+    # Fallback to .env API Key
+    if not api_key:
+        api_key = os.getenv('KIE_API_KEY', '')
+    
+    if not url or not api_key:
+        return jsonify({"success": False, "output": "URL dan API Key harus diisi (atau set KIE_API_KEY di .env)"})
+    
+    args = [url, api_key, model]
+    if watermark:
+        args.append(watermark)
+
+    result = run_script("auto_process.py", args)
+    return jsonify(result)
+
+
+if __name__ == '__main__':
+    print("=" * 60)
+    print("YouTube Clipper GUI")
+    print("Buka browser: http://localhost:5000")
+    print("=" * 60)
+    app.run(debug=True, port=5000)

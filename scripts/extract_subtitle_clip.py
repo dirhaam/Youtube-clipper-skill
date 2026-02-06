@@ -30,6 +30,18 @@ def format_srt_time(seconds):
     millis = int((td.total_seconds() % 1) * 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
+def clean_vtt_markup(text):
+    """清理 VTT 时间标签和样式标签，只保留纯文本"""
+    # 移除 VTT 时间戳标签 如 <00:00:03.048>
+    text = re.sub(r'<\d{2}:\d{2}:\d{2}\.\d{3}>', '', text)
+    # 移除 <c> 和 </c> 标签
+    text = re.sub(r'</?c>', '', text)
+    # 移除其他可能的 HTML/VTT 标签
+    text = re.sub(r'<[^>]+>', '', text)
+    # 清理多余空格
+    text = ' '.join(text.split())
+    return text.strip()
+
 def extract_subtitle_clip(vtt_file, start_time, end_time, output_file):
     """提取字幕片段"""
     # 解析时间
@@ -71,6 +83,8 @@ def extract_subtitle_clip(vtt_file, start_time, end_time, output_file):
                     i += 1
 
                 text = ' '.join(text_lines)
+                # 清理 VTT 标签
+                text = clean_vtt_markup(text)
 
                 # 调整时间戳（减去起始时间）
                 adjusted_start = sub_start - start_seconds

@@ -214,13 +214,12 @@ def main():
 
         # 输出字幕文本（供 Claude 分析）
         print("\n" + "="*60)
-        print("字幕文本（前 50 行预览）:")
+        print("\n" + "="*60)
+        print("Subtitle Text (Full):")
         print("="*60)
         lines = analysis_data['subtitle_text'].split('\n')
-        preview_lines = lines[:50]
-        print('\n'.join(preview_lines))
-        if len(lines) > 50:
-            print(f"\n... （还有 {len(lines) - 50} 行）")
+        print('\n'.join(lines))
+        # preview_lines replaced by full lines
 
         # 保存到文件（如果指定）
         if output_json:

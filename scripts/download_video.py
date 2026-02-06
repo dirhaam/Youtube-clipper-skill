@@ -4,9 +4,14 @@
 使用 yt-dlp 下载视频（最高 1080p）和英文字幕
 """
 
+import os
 import sys
 import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 try:
     import yt_dlp
@@ -61,6 +66,17 @@ def download_video(url: str, output_dir: str = None) -> dict:
     print(f"   URL: {url}")
     print(f"   输出目录: {output_dir}")
 
+    # 获取 FFmpeg 路径
+    ffmpeg_path = os.getenv('FFMPEG_PATH')
+    if ffmpeg_path:
+        print(f"   FFmpeg 路径: {ffmpeg_path}")
+
+    # Check for cookies.txt
+    cookie_file = Path("cookies.txt")
+    use_cookies = cookie_file.exists()
+    if use_cookies:
+        print(f"   🍪 Using cookies from: {cookie_file.name}")
+
     # 配置 yt-dlp 选项
     ydl_opts = {
         # 视频格式：最高 1080p，优先 mp4
@@ -69,12 +85,10 @@ def download_video(url: str, output_dir: str = None) -> dict:
         # 输出模板：包含视频 ID（避免特殊字符问题）
         'outtmpl': str(output_dir / '%(id)s.%(ext)s'),
 
-        # 下载字幕
-        'writesubtitles': True,
-        'writeautomaticsub': True,  # 自动字幕作为备选
-        'subtitleslangs': ['en'],   # 英文字幕
-        'subtitlesformat': 'vtt',   # VTT 格式
-
+        # 暂时禁用字幕下载（避免 429 错误阻止视频下载）
+        'writesubtitles': False,
+        'writeautomaticsub': False,
+        
         # 不下载缩略图
         'writethumbnail': False,
 
@@ -82,9 +96,21 @@ def download_video(url: str, output_dir: str = None) -> dict:
         'quiet': False,
         'no_warnings': False,
 
+        # Anti-bot options
+        'sleep_interval': 5,
+        'sleep_interval_requests': 2,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+
         # 进度钩子
         'progress_hooks': [_progress_hook],
     }
+
+    if use_cookies:
+        ydl_opts['cookiefile'] = str(cookie_file)
+
+    # 如果指定了 FFmpeg 路径，配置 ffmpeg_location
+    if ffmpeg_path:
+        ydl_opts['ffmpeg_location'] = ffmpeg_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -108,17 +134,13 @@ def download_video(url: str, output_dir: str = None) -> dict:
             video_filename = ydl.prepare_filename(info)
             video_path = Path(video_filename)
 
-            # 查找字幕文件
+            # 查找字幕文件（支持印尼文和英文）
             subtitle_path = None
-            subtitle_exts = ['.en.vtt', '.vtt']
-            for ext in subtitle_exts:
-                potential_sub = video_path.with_suffix(ext)
-                # 处理带语言代码的字幕文件
-                if not potential_sub.exists():
-                    # 尝试 <filename>.en.vtt 格式
-                    stem = video_path.stem
-                    potential_sub = video_path.parent / f"{stem}.en.vtt"
-
+            subtitle_patterns = ['.id.vtt', '.en.vtt', '.vtt']
+            stem = video_path.stem
+            for pattern in subtitle_patterns:
+                # 尝试 <filename><lang>.vtt 格式
+                potential_sub = video_path.parent / f"{stem}{pattern}"
                 if potential_sub.exists():
                     subtitle_path = potential_sub
                     break
