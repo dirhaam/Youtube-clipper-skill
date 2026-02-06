@@ -15,19 +15,47 @@ import subprocess
 # but we will call them via subprocess to ensure clean execution environments
 SCRIPTS_DIR = Path(__file__).parent.resolve()
 
-def run_command(script, args):
-    """Run a script and return its stdout (or None if failed)"""
+def run_command_stream(script, args):
+    """Run a script and stream output to console. Returns True if success."""
     cmd = ["py", str(SCRIPTS_DIR / script)] + args
     print(f"\n▶️ Running {script}...")
     
-    # Python subprocess needs specific encoding handling on Windows
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     
     try:
+        # Popen allows streaming stdout/stderr
+        process = subprocess.Popen(
+            cmd,
+            stdout=sys.stdout,
+            stderr=sys.stderr, # Stream directly to console
+            env=env,
+            encoding='utf-8'
+        )
+        process.wait()
+        
+        if process.returncode != 0:
+            print(f"❌ Error running {script} (Exit Code: {process.returncode})")
+            return False
+        return True
+    except Exception as e:
+        print(f"❌ Failed to launch {script}: {e}")
+        return False
+
+def run_command_capture(script, args):
+    """Run a script, stream stderr to console, but capture stdout. Returns stdout string or None."""
+    cmd = ["py", str(SCRIPTS_DIR / script)] + args
+    print(f"\n▶️ Running {script}...")
+    
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    
+    try:
+        # Capture stdout (for parsing) but stream stderr (for logs/progress/retries)
         result = subprocess.run(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=sys.stderr, # Stream logs to console
             text=True,
             encoding='utf-8',
             env=env,
@@ -35,21 +63,25 @@ def run_command(script, args):
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error running {script}: {e.stderr}")
+        print(f"❌ Error running {script}: Exit code {e.returncode}")
+        # Not printing stderr here because it was already streamed
         return None
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python auto_process.py <youtube_url> <api_key> [model]")
+        print("Usage: python auto_process.py <youtube_url> <api_key> [model] [watermark] [burn_subtitle]")
         sys.exit(1)
 
     url = sys.argv[1]
     api_key = sys.argv[2]
     model = sys.argv[3] if len(sys.argv) > 3 else "gemini-2.0-flash"
+    watermark = sys.argv[4] if len(sys.argv) > 4 else ""
+    burn_subtitle_flag = (sys.argv[5].lower() == "true") if len(sys.argv) > 5 else True
 
     print("🚀 Starting Full Automation Pipeline")
     print(f"Target: {url}")
     print(f"Model: {model}")
+    print(f"Burn Subtitle: {burn_subtitle_flag}")
 
     # Create valid filename safe video ID for folder
     # We'll use the ID we get from yt-dlp
@@ -80,7 +112,7 @@ def main():
     if not video_file.exists():
         # Pass output_dir to download_video.py
         # Usage: download_video.py <url> [output_dir]
-        run_command("download_video.py", [url, str(project_dir)])
+        run_command_stream("download_video.py", [url, str(project_dir)])
         
         # Check if file exists (it might be mkv or webm if not mp4, but our script forces mp4)
         # But download_video.py forces .mp4 in opts.
@@ -101,7 +133,7 @@ def main():
     subtitle_file = project_dir / f"{video_id}.{lang}.vtt"
     
     # Usage: download_subtitle.py <url> [lang] [auto] [output_dir]
-    run_command("download_subtitle.py", [url, lang, "true", str(project_dir)])
+    run_command_stream("download_subtitle.py", [url, lang, "true", str(project_dir)])
     
     if not subtitle_file.exists():
         found = list(project_dir.glob(f"{video_id}*.vtt"))
@@ -128,7 +160,8 @@ def main():
     
     if not chapters:
         # auto_mapper.py takes file path
-        output = run_command("auto_mapper.py", [str(subtitle_file), api_key, model])
+        # Use run_command_capture to get JSON output, but logs will stream to console
+        output = run_command_capture("auto_mapper.py", [str(subtitle_file), api_key, model])
         if not output:
              # Error handled inside run_command logging
              sys.exit(1)
@@ -227,27 +260,33 @@ def main():
             continue
 
         # Clip Video
-        if run_command("clip_video.py", [str(video_file), chap['start'], chap['end'], str(clip_file)]) is None:
+        if not run_command_stream("clip_video.py", [str(video_file), chap['start'], chap['end'], str(clip_file)]):
             continue
             
         # Extract Subtitle
-        if run_command("extract_subtitle_clip.py", [str(subtitle_file), chap['start'], chap['end'], str(sub_clip_file)]) is None:
+        if not run_command_stream("extract_subtitle_clip.py", [str(subtitle_file), chap['start'], chap['end'], str(sub_clip_file)]):
             continue
-            
-        # Burn Subtitle
-        burn_args = [str(clip_file), str(sub_clip_file), str(final_file)]
-        if len(sys.argv) > 4:
-            # Assume 5th arg is watermark text
-             watermark = sys.argv[4]
-             burn_args.extend(["24", "30", watermark])
         
-        if run_command("burn_subtitles.py", burn_args) is None:
-            continue
+        # Burn Subtitle (optional)
+        if burn_subtitle_flag:
+            burn_args = [str(clip_file), str(sub_clip_file), str(final_file)]
+            if watermark:
+                 burn_args.extend(["24", "30", watermark])
             
-        processed_files.append({
-            "title": chap['title'],
-            "file": str(final_file)
-        })
+            if not run_command_stream("burn_subtitles.py", burn_args):
+                continue
+            
+            processed_files.append({
+                "title": chap['title'],
+                "file": str(final_file)
+            })
+        else:
+            # Skip burning, final file is the clip itself
+            print(f"      ⏭️ Skipping burn (disabled). Clip saved as: {clip_file.name}")
+            processed_files.append({
+                "title": chap['title'],
+                "file": str(clip_file)
+            })
 
     # Summary
     print("\n" + "="*60)

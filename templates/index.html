@@ -67,21 +67,34 @@
                             <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
                         </div>
                         <div class="form-group">
-                            <label>Kie.ai API Key</label>
-                            <input type="password" name="api_key" placeholder="sk-... (Leave empty to use .env)">
+                            <label>API Key (Kie.ai / Perplexity)</label>
+                            <input type="password" name="api_key" placeholder="(Leave empty to use .env)">
                         </div>
                         <div class="form-group">
                             <label>Model</label>
                             <select name="model"
                                 style="padding: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); border-radius: 8px;">
-                                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
-                                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                <option value="gpt-4o">GPT-4o</option>
+                                <optgroup label="Kie.ai (Google/OpenAI)">
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
+                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                    <option value="gpt-4o">GPT-4o</option>
+                                </optgroup>
+                                <optgroup label="Perplexity AI">
+                                    <option value="sonar-pro">Sonar Pro (Fast & Good Context)</option>
+                                    <option value="sonar-reasoning">Sonar Reasoning (DeepSeek R1)</option>
+                                    <option value="r1-1776">R1-1776</option>
+                                </optgroup>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Watermark Text (Optional)</label>
                             <input type="text" name="watermark" placeholder="e.g. Sc: @ChannelName">
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" name="burn_subtitle" id="burn-subtitle-check" checked
+                                style="width: 20px; height: 20px; accent-color: #ff4757;">
+                            <label for="burn-subtitle-check" style="margin: 0; cursor: pointer;">🔥 Burn Subtitles ke
+                                Video</label>
                         </div>
                         <button type="submit" class="btn-primary"
                             style="background: linear-gradient(45deg, #ff4757, #ff6b81);">
@@ -89,220 +102,237 @@
                             MULAI PROSES OTOMATIS
                         </button>
                     </form>
+
+                    <!-- Progress Section -->
+                    <div id="progress-section"
+                        style="display: none; margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <span id="progress-step" style="color: #ff6b81; font-weight: bold;">Step 0/5</span>
+                            <span id="progress-percent" style="color: #ccc;">0%</span>
+                        </div>
+                        <div style="background: #333; height: 10px; border-radius: 5px; overflow: hidden;">
+                            <div id="progress-bar"
+                                style="background: linear-gradient(90deg, #ff4757, #ff6b81); height: 100%; width: 0%; transition: width 0.3s ease;">
+                            </div>
+                        </div>
+                        <p id="progress-status" style="color: #aaa; font-size: 13px; margin-top: 10px;">Menunggu...</p>
+                    </div>
                 </div>
             </section>
+            </form>
+    </div>
+    </section>
 
-            <!-- Download Tab -->
-            <section class="tab" id="download">
-                <h2>📥 Download Video</h2>
-                <form id="download-form" class="form">
-                    <div class="form-group">
-                        <label>URL YouTube</label>
-                        <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Download Video
-                    </button>
-                </form>
-            </section>
+    <!-- Download Tab -->
+    <section class="tab" id="download">
+        <h2>📥 Download Video</h2>
+        <form id="download-form" class="form">
+            <div class="form-group">
+                <label>URL YouTube</label>
+                <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
+            </div>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Download Video
+            </button>
+        </form>
+    </section>
 
-            <!-- Download Subtitle Tab -->
-            <section class="tab" id="download-sub">
-                <h2>📝 Download Subtitle</h2>
-                <form id="download-sub-form" class="form">
-                    <div class="form-group">
-                        <label>URL YouTube</label>
-                        <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Bahasa (Kode)</label>
-                            <input type="text" name="lang" value="id" placeholder="id, en, ja..." required>
-                        </div>
-                        <div class="form-group">
-                            <label>Auto Generated?</label>
-                            <select name="auto"
-                                style="padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);">
-                                <option value="true">Ya (Termasuk Auto-Sub)</option>
-                                <option value="false">Tidak (Hanya Manual)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Download Subtitle
-                    </button>
-                </form>
-            </section>
-
-            <!-- Analyze Tab -->
-            <section class="tab" id="analyze">
-                <h2>📊 Analyze Subtitle</h2>
-                <form id="analyze-form" class="form">
-                    <div class="form-group">
-                        <label>File Subtitle (.vtt)</label>
-                        <div class="file-input-wrapper">
-                            <input type="text" name="file" placeholder="Pilih atau ketik nama file..." required>
-                            <button type="button" class="btn-file"
-                                onclick="showFilePicker('analyze', 'file', '.vtt')">📂</button>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Analyze
-                    </button>
-                </form>
-            </section>
-
-            <!-- Auto Clip AI Tab -->
-            <section class="tab" id="auto-clip">
-                <h2>✨ Auto Clip AI (Kie.ai)</h2>
-                <form id="auto-clip-form" class="form">
-                    <div class="form-group">
-                        <label>File Subtitle (.vtt)</label>
-                        <div class="file-input-wrapper">
-                            <input type="text" name="file" placeholder="subtitle.vtt" required>
-                            <button type="button" class="btn-file"
-                                onclick="showFilePicker('auto-clip', 'file', '.vtt')">📂</button>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Kie.ai API Key</label>
-                        <input type="password" name="api_key" placeholder="sk-... (Leave empty to use .env)">
-                    </div>
-                    <div class="form-group">
-                        <label>Model</label>
-                        <select name="model"
-                            style="padding: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); border-radius: 8px;">
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
-                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                            <option value="gpt-4o">GPT-4o</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Generate Chapters
-                    </button>
-                </form>
-            </section>
-
-            <!-- Clip Tab -->
-            <section class="tab" id="clip">
-                <h2>✂️ Clip Video</h2>
-                <form id="clip-form" class="form">
-                    <div class="form-group">
-                        <label>Video Input</label>
-                        <div class="file-input-wrapper">
-                            <input type="text" name="video" placeholder="video.mp4" required>
-                            <button type="button" class="btn-file"
-                                onclick="showFilePicker('clip', 'video', '.mp4')">📂</button>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Waktu Mulai</label>
-                            <input type="text" name="start" placeholder="00:00:00" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Waktu Akhir</label>
-                            <input type="text" name="end" placeholder="00:01:30" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Output</label>
-                        <input type="text" name="output" placeholder="clip_output.mp4" required>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Clip Video
-                    </button>
-                </form>
-            </section>
-
-            <!-- Extract Tab -->
-            <section class="tab" id="extract">
-                <h2>🔤 Extract Subtitle</h2>
-                <form id="extract-form" class="form">
-                    <div class="form-group">
-                        <label>File Subtitle (.vtt)</label>
-                        <div class="file-input-wrapper">
-                            <input type="text" name="subtitle" placeholder="subtitle.vtt" required>
-                            <button type="button" class="btn-file"
-                                onclick="showFilePicker('extract', 'subtitle', '.vtt')">📂</button>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Waktu Mulai</label>
-                            <input type="text" name="start" placeholder="00:00:00" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Waktu Akhir</label>
-                            <input type="text" name="end" placeholder="00:01:30" required>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Output (.srt)</label>
-                        <input type="text" name="output" placeholder="clip.srt" required>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Extract
-                    </button>
-                </form>
-            </section>
-
-            <!-- Burn Tab -->
-            <section class="tab" id="burn">
-                <h2>🎬 Burn Subtitle</h2>
-                <form id="burn-form" class="form">
-                    <div class="form-group">
-                        <label>Video Input</label>
-                        <div class="file-input-wrapper">
-                            <input type="text" name="video" placeholder="video.mp4" required>
-                            <button type="button" class="btn-file"
-                                onclick="showFilePicker('burn', 'video', '.mp4')">📂</button>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>File Subtitle (.srt)</label>
-                        <div class="file-input-wrapper">
-                            <input type="text" name="subtitle" placeholder="subtitle.srt" required>
-                            <button type="button" class="btn-file"
-                                onclick="showFilePicker('burn', 'subtitle', '.srt')">📂</button>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Output</label>
-                        <input type="text" name="output" placeholder="final_output.mp4" required>
-                    </div>
-                    <button type="submit" class="btn-primary">
-                        <span class="spinner"></span>
-                        Burn Subtitle
-                    </button>
-                </form>
-            </section>
-
-            <!-- Output Console -->
-            <div class="console">
-                <div class="console-header">
-                    <span>📟 Output</span>
-                    <button onclick="clearConsole()" class="btn-clear">Clear</button>
+    <!-- Download Subtitle Tab -->
+    <section class="tab" id="download-sub">
+        <h2>📝 Download Subtitle</h2>
+        <form id="download-sub-form" class="form">
+            <div class="form-group">
+                <label>URL YouTube</label>
+                <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Bahasa (Kode)</label>
+                    <input type="text" name="lang" value="id" placeholder="id, en, ja..." required>
                 </div>
-                <pre id="console-output">Siap digunakan...</pre>
+                <div class="form-group">
+                    <label>Auto Generated?</label>
+                    <select name="auto"
+                        style="padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);">
+                        <option value="true">Ya (Termasuk Auto-Sub)</option>
+                        <option value="false">Tidak (Hanya Manual)</option>
+                    </select>
+                </div>
             </div>
-        </main>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Download Subtitle
+            </button>
+        </form>
+    </section>
 
-        <!-- File Browser Panel -->
-        <aside class="file-panel" id="file-panel">
-            <div class="file-panel-header">
-                <h3>📁 Files</h3>
-                <button onclick="closeFilePicker()" class="btn-close">✕</button>
+    <!-- Analyze Tab -->
+    <section class="tab" id="analyze">
+        <h2>📊 Analyze Subtitle</h2>
+        <form id="analyze-form" class="form">
+            <div class="form-group">
+                <label>File Subtitle (.vtt)</label>
+                <div class="file-input-wrapper">
+                    <input type="text" name="file" placeholder="Pilih atau ketik nama file..." required>
+                    <button type="button" class="btn-file"
+                        onclick="showFilePicker('analyze', 'file', '.vtt')">📂</button>
+                </div>
             </div>
-            <div class="file-path" id="current-path"></div>
-            <div class="file-list" id="file-list"></div>
-        </aside>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Analyze
+            </button>
+        </form>
+    </section>
+
+    <!-- Auto Clip AI Tab -->
+    <section class="tab" id="auto-clip">
+        <h2>✨ Auto Clip AI (Kie.ai)</h2>
+        <form id="auto-clip-form" class="form">
+            <div class="form-group">
+                <label>File Subtitle (.vtt)</label>
+                <div class="file-input-wrapper">
+                    <input type="text" name="file" placeholder="subtitle.vtt" required>
+                    <button type="button" class="btn-file"
+                        onclick="showFilePicker('auto-clip', 'file', '.vtt')">📂</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Kie.ai API Key</label>
+                <input type="password" name="api_key" placeholder="sk-... (Leave empty to use .env)">
+            </div>
+            <div class="form-group">
+                <label>Model</label>
+                <select name="model"
+                    style="padding: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); border-radius: 8px;">
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Generate Chapters
+            </button>
+        </form>
+    </section>
+
+    <!-- Clip Tab -->
+    <section class="tab" id="clip">
+        <h2>✂️ Clip Video</h2>
+        <form id="clip-form" class="form">
+            <div class="form-group">
+                <label>Video Input</label>
+                <div class="file-input-wrapper">
+                    <input type="text" name="video" placeholder="video.mp4" required>
+                    <button type="button" class="btn-file" onclick="showFilePicker('clip', 'video', '.mp4')">📂</button>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Waktu Mulai</label>
+                    <input type="text" name="start" placeholder="00:00:00" required>
+                </div>
+                <div class="form-group">
+                    <label>Waktu Akhir</label>
+                    <input type="text" name="end" placeholder="00:01:30" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Output</label>
+                <input type="text" name="output" placeholder="clip_output.mp4" required>
+            </div>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Clip Video
+            </button>
+        </form>
+    </section>
+
+    <!-- Extract Tab -->
+    <section class="tab" id="extract">
+        <h2>🔤 Extract Subtitle</h2>
+        <form id="extract-form" class="form">
+            <div class="form-group">
+                <label>File Subtitle (.vtt)</label>
+                <div class="file-input-wrapper">
+                    <input type="text" name="subtitle" placeholder="subtitle.vtt" required>
+                    <button type="button" class="btn-file"
+                        onclick="showFilePicker('extract', 'subtitle', '.vtt')">📂</button>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Waktu Mulai</label>
+                    <input type="text" name="start" placeholder="00:00:00" required>
+                </div>
+                <div class="form-group">
+                    <label>Waktu Akhir</label>
+                    <input type="text" name="end" placeholder="00:01:30" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Output (.srt)</label>
+                <input type="text" name="output" placeholder="clip.srt" required>
+            </div>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Extract
+            </button>
+        </form>
+    </section>
+
+    <!-- Burn Tab -->
+    <section class="tab" id="burn">
+        <h2>🎬 Burn Subtitle</h2>
+        <form id="burn-form" class="form">
+            <div class="form-group">
+                <label>Video Input</label>
+                <div class="file-input-wrapper">
+                    <input type="text" name="video" placeholder="video.mp4" required>
+                    <button type="button" class="btn-file" onclick="showFilePicker('burn', 'video', '.mp4')">📂</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>File Subtitle (.srt)</label>
+                <div class="file-input-wrapper">
+                    <input type="text" name="subtitle" placeholder="subtitle.srt" required>
+                    <button type="button" class="btn-file"
+                        onclick="showFilePicker('burn', 'subtitle', '.srt')">📂</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Output</label>
+                <input type="text" name="output" placeholder="final_output.mp4" required>
+            </div>
+            <button type="submit" class="btn-primary">
+                <span class="spinner"></span>
+                Burn Subtitle
+            </button>
+        </form>
+    </section>
+
+    <!-- Output Console -->
+    <div class="console">
+        <div class="console-header">
+            <span>📟 Output</span>
+            <button onclick="clearConsole()" class="btn-clear">Clear</button>
+        </div>
+        <pre id="console-output">Siap digunakan...</pre>
+    </div>
+    </main>
+
+    <!-- File Browser Panel -->
+    <aside class="file-panel" id="file-panel">
+        <div class="file-panel-header">
+            <h3>📁 Files</h3>
+            <button onclick="closeFilePicker()" class="btn-close">✕</button>
+        </div>
+        <div class="file-path" id="current-path"></div>
+        <div class="file-list" id="file-list"></div>
+    </aside>
     </div>
 
     <script src="/static/script.js"></script>

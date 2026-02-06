@@ -6,6 +6,9 @@ Flask backend for running video processing scripts
 import os
 import subprocess
 import json
+import threading
+import uuid
+import time
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
@@ -19,6 +22,9 @@ SCRIPTS_DIR = BASE_DIR / "scripts"
 from dotenv import load_dotenv
 load_dotenv()
 FFMPEG_PATH = os.getenv('FFMPEG_PATH', '')
+
+# Background job tracking
+jobs = {}  # {job_id: {"status": "running/done/error", "step": 1, "output": "", "result": None}}
 
 
 def run_script(script_name, args):
@@ -246,12 +252,13 @@ def auto_map_chapters():
 
 @app.route('/api/full-auto', methods=['POST'])
 def full_automation():
-    """Run full automation pipeline"""
+    """Run full automation pipeline (async)"""
     data = request.json
     url = data.get('url', '')
     api_key = data.get('api_key', '')
     model = data.get('model', 'gemini-2.0-flash')
     watermark = data.get('watermark', '')
+    burn_subtitle = data.get('burn_subtitle', True)
     
     # Fallback to .env API Key
     if not api_key:
@@ -260,12 +267,103 @@ def full_automation():
     if not url or not api_key:
         return jsonify({"success": False, "output": "URL dan API Key harus diisi (atau set KIE_API_KEY di .env)"})
     
-    args = [url, api_key, model]
-    if watermark:
-        args.append(watermark)
+    # Create job ID
+    job_id = str(uuid.uuid4())[:8]
+    jobs[job_id] = {"status": "running", "step": 0, "total_steps": 5, "message": "Memulai...", "output": ""}
+    
+    # Run in background thread
+    def run_job():
+        args = [url, api_key, model, watermark, "true" if burn_subtitle else "false"]
+        cmd = ["py", str(SCRIPTS_DIR / "auto_process.py")] + args
+        
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        
+        try:
+            # Use Popen to stream output
+            process = subprocess.Popen(
+                cmd,
+                cwd=str(BASE_DIR),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                env=env
+            )
+            
+            output_lines = []
+            for line in iter(process.stdout.readline, ''):
+                output_lines.append(line)
+                jobs[job_id]["output"] = "".join(output_lines[-50:])  # Keep last 50 lines
+                
+                # Parse step from output - handle "Step 1/5", "Step 2/5", "Step 3/5", "Step 4-5/5"
+                if "[ Step " in line:
+                    try:
+                        step_part = line.split("Step ")[1].split("/")[0]
+                        # Handle "4-5" format
+                        if "-" in step_part:
+                            step_part = step_part.split("-")[0]  # Take first number
+                        jobs[job_id]["step"] = int(step_part)
+                    except:
+                        pass
+                
+                # Track clip progress (step 4 has sub-progress per clip)
+                if "🎬 Clip" in line:
+                    jobs[job_id]["step"] = 4  # Ensure we're at step 4 during clips
+                    jobs[job_id]["message"] = line.strip()
+                elif "✂️" in line or "剪辑" in line:
+                    jobs[job_id]["message"] = "✂️ Clipping video..."
+                elif "📝" in line or "提取字幕" in line:
+                    jobs[job_id]["message"] = "📝 Extracting subtitle..."
+                elif "🔥" in line or "烧录" in line:
+                    jobs[job_id]["message"] = "🔥 Burning subtitle..."
+                elif "🤖 Sending" in line:
+                    jobs[job_id]["step"] = 3
+                    jobs[job_id]["message"] = "🤖 Analyzing with AI..."
+                elif "Running" in line:
+                    jobs[job_id]["message"] = line.strip()
+                elif "✅" in line:
+                    jobs[job_id]["message"] = line.strip()
+                elif "Download" in line and "subtitle" in line.lower():
+                    jobs[job_id]["step"] = 2
+                    jobs[job_id]["message"] = "📥 Downloading subtitle..."
+            
+            process.wait()
+            
+            if process.returncode == 0:
+                jobs[job_id]["status"] = "done"
+                jobs[job_id]["step"] = 5
+                jobs[job_id]["message"] = "✅ Selesai!"
+            else:
+                jobs[job_id]["status"] = "error"
+                jobs[job_id]["message"] = "❌ Gagal!"
+                
+        except Exception as e:
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["message"] = f"❌ Error: {str(e)}"
+    
+    thread = threading.Thread(target=run_job)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({"success": True, "job_id": job_id, "message": "Job started"})
 
-    result = run_script("auto_process.py", args)
-    return jsonify(result)
+
+@app.route('/api/job-status/<job_id>', methods=['GET'])
+def get_job_status(job_id):
+    """Get status of a background job"""
+    if job_id not in jobs:
+        return jsonify({"success": False, "error": "Job not found"})
+    
+    job = jobs[job_id]
+    return jsonify({
+        "success": True,
+        "status": job["status"],
+        "step": job["step"],
+        "total_steps": job["total_steps"],
+        "message": job["message"],
+        "output": job["output"]
+    })
 
 
 if __name__ == '__main__':
@@ -273,4 +371,4 @@ if __name__ == '__main__':
     print("YouTube Clipper GUI")
     print("Buka browser: http://localhost:5000")
     print("=" * 60)
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, threaded=True)

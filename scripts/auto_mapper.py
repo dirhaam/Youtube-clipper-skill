@@ -31,7 +31,8 @@ def generate_chapters(vtt_file, api_key, model="gpt-4o", base_url="https://api.k
     # 3. Prompt
     prompt = """
     Analyze the following VTT subtitle transcript.
-    Identify 3-5 distinct, interesting chapters or highlights.
+    Identify 10-15 distinct, interesting chapters or highlights that would make great short clips.
+    Focus on: funny moments, emotional moments, surprising reveals, key insights, or viral-worthy content.
     Return ONLY a raw JSON array. Do not use Markdown code blocks.
     
     Format:
@@ -49,50 +50,79 @@ def generate_chapters(vtt_file, api_key, model="gpt-4o", base_url="https://api.k
 
     print(f"🤖 Sending request to Kie.ai ({model})...", file=sys.stderr)
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a professional video editor assistant. You extract viral clips from transcripts."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3
-        )
+    import time
+    max_retries = 5
+    retry_delay = 5
 
-        # Debug: Print raw response type and content
-        print(f"🔍 Response Type: {type(response)}", file=sys.stderr)
+    for attempt in range(max_retries):
         try:
-            print(f"🔍 Raw Choices: {response.choices}", file=sys.stderr)
-        except:
-            print("🔍 Could not print choices", file=sys.stderr)
-
-        if not response.choices:
-            print("❌ Error: Response has no choices", file=sys.stderr)
-            return {"success": False, "error": "API returned no choices", "debug": str(response)}
-
-        result_text = response.choices[0].message.content.strip()
-        
-        # Clean up if AI wraps in markdown
-        if result_text.startswith("```json"):
-            result_text = result_text.replace("```json", "").replace("```", "")
-        elif result_text.startswith("```"):
-            result_text = result_text.replace("```", "")
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are a professional video editor assistant. You extract viral clips from transcripts."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3
+            )
             
-        chapters = json.loads(result_text)
-        
-        print(f"✅ Successfully generated {len(chapters)} chapters", file=sys.stderr)
-        return {
-            "success": True, 
-            "chapters": chapters,
-            "raw_response": result_text
-        }
+            # Debug: Print raw response type and content
+            print(f"🔍 Response Type: {type(response)}", file=sys.stderr)
+            try:
+                print(f"🔍 Raw Choices: {response.choices}", file=sys.stderr)
+            except:
+                print("🔍 Could not print choices", file=sys.stderr)
 
-    except Exception as e:
-        print(f"❌ API Error: {str(e)}", file=sys.stderr)
-        # Print more details if possible
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
+            # Validate response - if invalid, retry
+            if not response.choices:
+                print(f"⚠️ Response has no choices (Attempt {attempt+1}/{max_retries}). Retrying in {retry_delay}s...", file=sys.stderr)
+                print(f"   Debug: {response}", file=sys.stderr)
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue # Retry!
+
+            result_text = response.choices[0].message.content.strip()
+            
+            # Clean up if AI wraps in markdown
+            if result_text.startswith("```json"):
+                result_text = result_text.replace("```json", "").replace("```", "")
+            elif result_text.startswith("```"):
+                result_text = result_text.replace("```", "")
+                
+            try:
+                chapters = json.loads(result_text)
+                print(f"✅ Successfully generated {len(chapters)} chapters", file=sys.stderr)
+                return {
+                    "success": True, 
+                    "chapters": chapters,
+                    "raw_response": result_text
+                }
+            except json.JSONDecodeError:
+                 print(f"⚠️ JSON Decode Error (Attempt {attempt+1}/{max_retries}). Retrying...", file=sys.stderr)
+                 print(f"   Raw Text: {result_text[:200]}...", file=sys.stderr)
+                 time.sleep(retry_delay)
+                 retry_delay *= 2
+                 continue # Retry on JSON error too
+
+        except Exception as e:
+            error_str = str(e)
+            # Check for maintenance or server errors (500, 502, 503, 529)
+            if "500" in error_str or "502" in error_str or "503" in error_str or "maintained" in error_str.lower() or "timeout" in error_str.lower():
+                if attempt < max_retries - 1:
+                    print(f"⚠️ Server Error (Attempt {attempt+1}/{max_retries}). Retrying in {retry_delay}s...", file=sys.stderr)
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+            
+            # Non-retryable errors: fail immediately
+            print(f"❌ API Error: {error_str}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+
+    # If loop finishes without return (retries exhausted)
+    return {"success": False, "error": "Max retries exceeded or API maintenance"}
+
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
@@ -103,13 +133,29 @@ if __name__ == "__main__":
     api_key = sys.argv[2]
     model = sys.argv[3] if len(sys.argv) > 3 else "gemini-2.5-flash"
     
-    # Dynamic Base URL for Kie.ai: https://api.kie.ai/<model>/v1
-    # Check if user provided explicit base_url, otherwise construct it
+    # Logic to switch between Kie.ai and Perplexity
+    is_perplexity = "sonar" in model or "r1" in model
+    
     if len(sys.argv) > 4:
+        # Explicit base URL override from args
         base_url = sys.argv[4]
     else:
-        # KIE.ai specific pattern
-        base_url = f"https://api.kie.ai/{model}/v1"
+        if is_perplexity:
+            base_url = "https://api.perplexity.ai"
+            # Override API Key if using Perplexity (unless passed explicitly as arg, but arg is generic)
+            # The auto_process.py passes sys.argv[2] as api_key. 
+            # If user selected Perplexity in GUI, we should probably handle key swapping here 
+            # OR ensuring auto_process passes the right key. 
+            # For simplicity: check env for PERPLEXITY_API_KEY if model is perplexity
+            from dotenv import load_dotenv
+            load_dotenv()
+            pplx_key = os.getenv("PERPLEXITY_API_KEY")
+            if pplx_key:
+                print("🔑 Switching to PERPLEXITY_API_KEY from .env", file=sys.stderr)
+                api_key = pplx_key
+        else:
+            # KIE.ai specific pattern
+            base_url = f"https://api.kie.ai/{model}/v1"
 
     print(f"🔗 Base URL: {base_url}", file=sys.stderr)
     result = generate_chapters(vtt_file, api_key, model, base_url)

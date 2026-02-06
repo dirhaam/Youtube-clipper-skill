@@ -61,18 +61,31 @@ document.getElementById('full-auto-form').addEventListener('submit', async (e) =
         url: form.url.value,
         api_key: form.api_key.value,
         model: form.model.value,
-        watermark: form.watermark.value
+        watermark: form.watermark.value,
+        burn_subtitle: form.burn_subtitle.checked
     };
+
+    // Show progress section
+    const progressSection = document.getElementById('progress-section');
+    const progressBar = document.getElementById('progress-bar');
+    const progressStep = document.getElementById('progress-step');
+    const progressPercent = document.getElementById('progress-percent');
+    const progressStatus = document.getElementById('progress-status');
+
+    progressSection.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressStep.textContent = 'Step 0/5';
+    progressPercent.textContent = '0%';
+    progressStatus.textContent = '🚀 Memulai proses...';
 
     // Custom handling for long process
     const btn = form.querySelector('button');
     btn.classList.add('loading');
     btn.disabled = true;
     log('🚀 Memulai Full Automation Pipeline...', '');
-    log('⏳ Proses ini akan memakan waktu lama (download -> analyze -> clip -> burn).', '');
-    log('☕ Silakan ambil kopi dulu...', '');
 
     try {
+        // Start the job
         const response = await fetch('/api/full-auto', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -81,13 +94,61 @@ document.getElementById('full-auto-form').addEventListener('submit', async (e) =
 
         const result = await response.json();
 
-        if (result.success) {
-            log(result.output, 'success');
-        } else {
-            const msg = result.output || JSON.stringify(result, null, 2);
-            log(msg, 'error');
+        if (!result.success || !result.job_id) {
+            progressStatus.textContent = '❌ Gagal memulai job!';
+            log(result.output || 'Failed to start job', 'error');
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            return;
+        }
+
+        const jobId = result.job_id;
+        log(`📋 Job started: ${jobId}`, '');
+
+        // Poll for status
+        let polling = true;
+        while (polling) {
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Poll every 1.5s
+
+            try {
+                const statusRes = await fetch(`/api/job-status/${jobId}`);
+                const statusData = await statusRes.json();
+
+                if (statusData.success) {
+                    const step = statusData.step;
+                    const total = statusData.total_steps;
+                    const percent = Math.round((step / total) * 100);
+
+                    progressStep.textContent = `Step ${step}/${total}`;
+                    progressPercent.textContent = `${percent}%`;
+                    progressBar.style.width = `${percent}%`;
+                    progressStatus.textContent = statusData.message;
+
+                    // Update console with output
+                    if (statusData.output) {
+                        log(statusData.output, '');
+                    }
+
+                    if (statusData.status === 'done') {
+                        progressBar.style.width = '100%';
+                        progressStep.textContent = 'Step 5/5';
+                        progressPercent.textContent = '100%';
+                        progressStatus.textContent = '✅ Selesai!';
+                        log('✅ Automation Complete!', 'success');
+                        polling = false;
+                    } else if (statusData.status === 'error') {
+                        progressStatus.textContent = '❌ Gagal!';
+                        log(statusData.output || 'Job failed', 'error');
+                        polling = false;
+                    }
+                }
+            } catch (pollError) {
+                console.error('Polling error:', pollError);
+                // Continue polling on network errors
+            }
         }
     } catch (error) {
+        progressStatus.textContent = '❌ Error!';
         log('Error: ' + error.message, 'error');
     } finally {
         btn.classList.remove('loading');
