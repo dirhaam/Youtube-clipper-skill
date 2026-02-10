@@ -4,6 +4,7 @@ Flask backend for running video processing scripts
 """
 
 import os
+import sys
 import subprocess
 import json
 import threading
@@ -50,7 +51,7 @@ def find_file_path(filename):
 
 def run_script(script_name, args):
     """Run a Python script and return output"""
-    cmd = ["py", str(SCRIPTS_DIR / script_name)] + args
+    cmd = [sys.executable, str(SCRIPTS_DIR / script_name)] + args
     
     # Force UTF-8 encoding for Python subprocess
     env = os.environ.copy()
@@ -117,6 +118,9 @@ def analyze_subtitle():
     subtitle_file = data.get('file', '')
     if not subtitle_file:
         return jsonify({"success": False, "output": "File subtitle tidak boleh kosong"})
+    
+    # Find full path
+    subtitle_file = find_file_path(subtitle_file)
     
     result = run_script("analyze_subtitles.py", [subtitle_file])
     return jsonify(result)
@@ -287,6 +291,9 @@ def auto_map_chapters():
     if not vtt_file or not api_key:
         return jsonify({"success": False, "output": "File dan API Key harus diisi (atau set KIE_API_KEY di .env)"})
     
+    # Find full path
+    vtt_file = find_file_path(vtt_file)
+    
     # Run auto_mapper.py
     result = run_script("auto_mapper.py", [vtt_file, api_key, model])
     
@@ -307,13 +314,18 @@ def full_automation():
     model = data.get('model', 'gemini-2.0-flash')
     watermark = data.get('watermark', '')
     burn_subtitle = data.get('burn_subtitle', True)
+    analysis_method = data.get('analysis_method', 'ai') # 'ai' or 'replayed'
     
     # Fallback to .env API Key
     if not api_key:
         api_key = os.getenv('KIE_API_KEY', '')
     
-    if not url or not api_key:
-        return jsonify({"success": False, "output": "URL dan API Key harus diisi (atau set KIE_API_KEY di .env)"})
+    if not url:
+         return jsonify({"success": False, "output": "URL harus diisi"})
+
+    # API key only needed for AI mode
+    if analysis_method == 'ai' and not api_key:
+        return jsonify({"success": False, "output": "API Key harus diisi untuk mode AI (atau set KIE_API_KEY di .env)"})
     
     # Create job ID
     job_id = str(uuid.uuid4())[:8]
@@ -321,8 +333,8 @@ def full_automation():
     
     # Run in background thread
     def run_job():
-        args = [url, api_key, model, watermark, "true" if burn_subtitle else "false"]
-        cmd = ["py", str(SCRIPTS_DIR / "auto_process.py")] + args
+        args = [url, api_key, model, watermark, "true" if burn_subtitle else "false", analysis_method]
+        cmd = [sys.executable, str(SCRIPTS_DIR / "auto_process.py")] + args
         
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"

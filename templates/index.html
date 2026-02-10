@@ -1,355 +1,687 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube Clipper</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0f0f0f',
+                        card: '#1a1a1a',
+                        hover: '#252525',
+                        accent: '#ff4757',
+                        'accent-hover': '#ff6b7a',
+                        border: '#333333',
+                        success: '#2ed573',
+                        warning: '#ffa502',
+                        error: '#ff4757',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Segoe UI', 'sans-serif'],
+                        mono: ['Fira Code', 'Consolas', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite;
+            /* Safari */
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
 </head>
 
-<body>
-    <div class="app">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo">
-                <span class="logo-icon">🎬</span>
-                <span class="logo-text">YouTube Clipper</span>
-            </div>
-            <nav class="nav">
-                <button class="nav-btn active" data-tab="full-auto">
-                    <span class="icon">🚀</span> Full Auto
-                </button>
-                <button class="nav-btn" data-tab="download">
-                    <span class="icon">📥</span> Download Video
-                </button>
-                <button class="nav-btn" data-tab="download-sub">
-                    <span class="icon">📝</span> Download Subtitle
-                </button>
-                <button class="nav-btn" data-tab="analyze">
-                    <span class="icon">📊</span> Analyze
-                </button>
-                <button class="nav-btn" data-tab="auto-clip">
-                    <span class="icon">✨</span> Auto Clip AI
-                </button>
-                <button class="nav-btn" data-tab="clip">
-                    <span class="icon">✂️</span> Clip Video
-                </button>
-                <button class="nav-btn" data-tab="extract">
-                    <span class="icon">🔤</span> Extract Subtitle
-                </button>
-                <button class="nav-btn" data-tab="burn">
-                    <span class="icon">🎬</span> Burn Subtitle
-                </button>
-            </nav>
-            <div class="sidebar-footer">
-                <button class="btn-secondary" onclick="openFolder()">
-                    📁 Buka Folder
-                </button>
-            </div>
-        </aside>
+<body class="bg-dark text-white h-screen flex overflow-hidden font-sans selection:bg-accent selection:text-white">
 
-        <!-- Main Content -->
-        <main class="main">
-            <!-- Full Auto Tab -->
-            <section class="tab active" id="full-auto">
-                <div
-                    style="background: linear-gradient(45deg, #2c3e50, #000); padding: 20px; border-radius: 12px; border: 1px solid #ff4757; margin-bottom: 20px;">
-                    <h2 style="color: #ff6b81; margin-bottom: 10px;">🚀 Full Automation Pipeline</h2>
-                    <p style="color: #ccc; font-size: 14px; margin-bottom: 20px;">
-                        Otomatisasi penuh: Download Video -> Download Subtitle -> AI Analysis -> Clip -> Extract ->
-                        Burn.<br>
-                        Tinggal duduk manis, tahu-tahu jadi! ☕
-                    </p>
-                    <form id="full-auto-form" class="form">
-                        <div class="form-group">
-                            <label>URL YouTube</label>
-                            <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
-                        </div>
-                        <div class="form-group">
-                            <label>API Key (Kie.ai / Perplexity)</label>
-                            <input type="password" name="api_key" placeholder="(Leave empty to use .env)">
-                        </div>
-                        <div class="form-group">
-                            <label>Model</label>
-                            <select name="model"
-                                style="padding: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); border-radius: 8px;">
-                                <optgroup label="Kie.ai (Google/OpenAI)">
-                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
-                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                    <option value="gpt-4o">GPT-4o</option>
-                                </optgroup>
-                                <optgroup label="Perplexity AI">
-                                    <option value="sonar-pro">Sonar Pro (Fast & Good Context)</option>
-                                    <option value="sonar-reasoning">Sonar Reasoning (DeepSeek R1)</option>
-                                    <option value="r1-1776">R1-1776</option>
-                                </optgroup>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Watermark Text (Optional)</label>
-                            <input type="text" name="watermark" placeholder="e.g. Sc: @ChannelName">
-                        </div>
-                        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" name="burn_subtitle" id="burn-subtitle-check" checked
-                                style="width: 20px; height: 20px; accent-color: #ff4757;">
-                            <label for="burn-subtitle-check" style="margin: 0; cursor: pointer;">🔥 Burn Subtitles ke
-                                Video</label>
-                        </div>
-                        <button type="submit" class="btn-primary"
-                            style="background: linear-gradient(45deg, #ff4757, #ff6b81);">
-                            <span class="spinner"></span>
-                            MULAI PROSES OTOMATIS
-                        </button>
-                    </form>
-
-                    <!-- Progress Section -->
-                    <div id="progress-section"
-                        style="display: none; margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <span id="progress-step" style="color: #ff6b81; font-weight: bold;">Step 0/5</span>
-                            <span id="progress-percent" style="color: #ccc;">0%</span>
-                        </div>
-                        <div style="background: #333; height: 10px; border-radius: 5px; overflow: hidden;">
-                            <div id="progress-bar"
-                                style="background: linear-gradient(90deg, #ff4757, #ff6b81); height: 100%; width: 0%; transition: width 0.3s ease;">
-                            </div>
-                        </div>
-                        <p id="progress-status" style="color: #aaa; font-size: 13px; margin-top: 10px;">Menunggu...</p>
-                    </div>
-                </div>
-            </section>
-            </form>
-    </div>
-    </section>
-
-    <!-- Download Tab -->
-    <section class="tab" id="download">
-        <h2>📥 Download Video</h2>
-        <form id="download-form" class="form">
-            <div class="form-group">
-                <label>URL YouTube</label>
-                <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
+    <!-- Sidebar -->
+    <aside class="w-64 bg-card border-r border-border flex flex-col flex-shrink-0 transition-all duration-300">
+        <!-- Logo -->
+        <div class="h-16 flex items-center px-6 border-b border-border">
+            <div class="flex items-center gap-3 text-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                    <path
+                        d="M19.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5a2.25 2.25 0 002.25 2.25h15a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25zm-3.75 12l-6-3.75 6-3.75v7.5z" />
+                </svg>
+                <span class="text-lg font-bold tracking-wide text-white">YT Clipper</span>
             </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group active"
+                data-tab="full-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                </svg>
+                Full Auto
+            </button>
+
+            <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4">Tools</div>
+
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="download">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
                 Download Video
             </button>
-        </form>
-    </section>
 
-    <!-- Download Subtitle Tab -->
-    <section class="tab" id="download-sub">
-        <h2>📝 Download Subtitle</h2>
-        <form id="download-sub-form" class="form">
-            <div class="form-group">
-                <label>URL YouTube</label>
-                <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Bahasa (Kode)</label>
-                    <input type="text" name="lang" value="id" placeholder="id, en, ja..." required>
-                </div>
-                <div class="form-group">
-                    <label>Auto Generated?</label>
-                    <select name="auto"
-                        style="padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary);">
-                        <option value="true">Ya (Termasuk Auto-Sub)</option>
-                        <option value="false">Tidak (Hanya Manual)</option>
-                    </select>
-                </div>
-            </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="download-sub">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
                 Download Subtitle
             </button>
-        </form>
-    </section>
 
-    <!-- Analyze Tab -->
-    <section class="tab" id="analyze">
-        <h2>📊 Analyze Subtitle</h2>
-        <form id="analyze-form" class="form">
-            <div class="form-group">
-                <label>File Subtitle (.vtt)</label>
-                <div class="file-input-wrapper">
-                    <input type="text" name="file" placeholder="Pilih atau ketik nama file..." required>
-                    <button type="button" class="btn-file"
-                        onclick="showFilePicker('analyze', 'file', '.vtt')">📂</button>
-                </div>
-            </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="analyze">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605" />
+                </svg>
                 Analyze
             </button>
-        </form>
-    </section>
 
-    <!-- Auto Clip AI Tab -->
-    <section class="tab" id="auto-clip">
-        <h2>✨ Auto Clip AI (Kie.ai)</h2>
-        <form id="auto-clip-form" class="form">
-            <div class="form-group">
-                <label>File Subtitle (.vtt)</label>
-                <div class="file-input-wrapper">
-                    <input type="text" name="file" placeholder="subtitle.vtt" required>
-                    <button type="button" class="btn-file"
-                        onclick="showFilePicker('auto-clip', 'file', '.vtt')">📂</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Kie.ai API Key</label>
-                <input type="password" name="api_key" placeholder="sk-... (Leave empty to use .env)">
-            </div>
-            <div class="form-group">
-                <label>Model</label>
-                <select name="model"
-                    style="padding: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); border-radius: 8px;">
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended)</option>
-                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                    <option value="gpt-4o">GPT-4o</option>
-                </select>
-            </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
-                Generate Chapters
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="auto-clip">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                </svg>
+                Auto Clip AI
             </button>
-        </form>
-    </section>
 
-    <!-- Clip Tab -->
-    <section class="tab" id="clip">
-        <h2>✂️ Clip Video</h2>
-        <form id="clip-form" class="form">
-            <div class="form-group">
-                <label>Video Input</label>
-                <div class="file-input-wrapper">
-                    <input type="text" name="video" id="clip-video-text" placeholder="Pilih file video..." required
-                        readonly>
-                    <input type="file" id="clip-video-file" accept=".mp4,.webm,.mkv" style="display:none"
-                        onchange="handleFileSelect(this, 'clip-video-text')">
-                    <button type="button" class="btn-file"
-                        onclick="document.getElementById('clip-video-file').click()">📂 Browse</button>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Waktu Mulai</label>
-                    <input type="text" name="start" placeholder="00:00:00" required>
-                </div>
-                <div class="form-group">
-                    <label>Waktu Akhir</label>
-                    <input type="text" name="end" placeholder="00:01:30" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Output</label>
-                <input type="text" name="output" placeholder="clip_output.mp4" required>
-            </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="clip">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M7.848 8.25l1.536.887M7.848 8.25a3 3 0 11-5.196-3 3 3 0 015.196 3zm1.536.887a2.165 2.165 0 011.083 1.839c.005.351.054.695.14 1.024M9.384 9.137l2.077 1.199M7.848 15.75l1.536-.887m-1.536.887a3 3 0 11-5.196 3 3 3 0 015.196-3zm1.536-.887a2.165 2.165 0 001.083-1.838c.005-.352.054-.695.14-1.025m-1.223 2.863l2.077-1.199m0-3.328a4.323 4.323 0 012.068-1.379l5.317-1.532a2.16 2.16 0 011.702.586 2.16 2.16 0 010 2.638l-3.648 3.648a2.16 2.16 0 01-2.638 0 2.16 2.16 0 01-.586-1.702l1.53-5.317a4.323 4.323 0 011.379-2.068l1.199-2.077a2.75 2.75 0 014.73 0l1.199 2.077c.451.78.966 1.488 1.53 2.115" />
+                </svg>
                 Clip Video
             </button>
-        </form>
-    </section>
 
-    <!-- Extract Tab -->
-    <section class="tab" id="extract">
-        <h2>🔤 Extract Subtitle</h2>
-        <form id="extract-form" class="form">
-            <div class="form-group">
-                <label>File Subtitle (.vtt)</label>
-                <div class="file-input-wrapper">
-                    <input type="text" name="subtitle" id="extract-subtitle-text" placeholder="Pilih file subtitle..."
-                        required readonly>
-                    <input type="file" id="extract-subtitle-file" accept=".vtt,.srt" style="display:none"
-                        onchange="handleFileSelect(this, 'extract-subtitle-text')">
-                    <button type="button" class="btn-file"
-                        onclick="document.getElementById('extract-subtitle-file').click()">📂 Browse</button>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Waktu Mulai</label>
-                    <input type="text" name="start" placeholder="00:00:00" required>
-                </div>
-                <div class="form-group">
-                    <label>Waktu Akhir</label>
-                    <input type="text" name="end" placeholder="00:01:30" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Output (.srt)</label>
-                <input type="text" name="output" placeholder="clip.srt" required>
-            </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
-                Extract
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="extract">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                </svg>
+                Extract Subtitle
             </button>
-        </form>
-    </section>
 
-    <!-- Burn Tab -->
-    <section class="tab" id="burn">
-        <h2>🎬 Burn Subtitle</h2>
-        <form id="burn-form" class="form">
-            <div class="form-group">
-                <label>Video Input</label>
-                <div class="file-input-wrapper">
-                    <input type="text" name="video" id="burn-video-text" placeholder="Pilih file video..." required
-                        readonly>
-                    <input type="file" id="burn-video-file" accept=".mp4,.webm,.mkv" style="display:none"
-                        onchange="handleFileSelect(this, 'burn-video-text')">
-                    <button type="button" class="btn-file"
-                        onclick="document.getElementById('burn-video-file').click()">📂 Browse</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>File Subtitle (.srt)</label>
-                <div class="file-input-wrapper">
-                    <input type="text" name="subtitle" id="burn-subtitle-text" placeholder="Pilih file subtitle..."
-                        required readonly>
-                    <input type="file" id="burn-subtitle-file" accept=".srt" style="display:none"
-                        onchange="handleFileSelect(this, 'burn-subtitle-text')">
-                    <button type="button" class="btn-file"
-                        onclick="document.getElementById('burn-subtitle-file').click()">📂 Browse</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Output</label>
-                <input type="text" name="output" placeholder="final_output.mp4" required>
-            </div>
-            <button type="submit" class="btn-primary">
-                <span class="spinner"></span>
+            <button
+                class="nav-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-hover hover:text-white transition-all group"
+                data-tab="burn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5 group-hover:text-accent transition-colors">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+                </svg>
                 Burn Subtitle
             </button>
-        </form>
-    </section>
+        </nav>
 
-    <!-- Output Console -->
-    <div class="console">
-        <div class="console-header">
-            <span>📟 Output</span>
-            <button onclick="clearConsole()" class="btn-clear">Clear</button>
+        <!-- Footer -->
+        <div class="p-4 border-t border-border">
+            <button onclick="openFolder()"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-hover border border-border text-sm font-medium hover:bg-border transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" />
+                </svg>
+                Buka Folder
+            </button>
         </div>
-        <pre id="console-output">Siap digunakan...</pre>
-    </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-dark relative">
+        <!-- Content Scroll Area -->
+        <div class="flex-1 overflow-y-auto scrollbar-thin p-8" id="main-scroll-area">
+            <div class="max-w-4xl mx-auto">
+
+                <!-- Full Auto Tab -->
+                <section class="tab active" id="full-auto">
+                    <div
+                        class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 to-black border border-gray-800 p-8 shadow-2xl">
+                        <!-- Background Glow -->
+                        <div class="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-accent/10 rounded-full blur-3xl">
+                        </div>
+
+                        <div class="relative z-10">
+                            <h2
+                                class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-accent to-pink-500 mb-2">
+                                🚀 Full Automation</h2>
+                            <p class="text-gray-400 mb-8 text-sm max-w-xl">
+                                Otomatisasi end-to-end: Download Video ➔ AI Analysis ➔ Clipping ➔ Subtitling ➔ Burning.
+                            </p>
+
+                            <form id="full-auto-form" class="space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="md:col-span-2 space-y-2">
+                                        <label
+                                            class="text-xs font-semibold uppercase tracking-wider text-gray-500">YouTube
+                                            URL</label>
+                                        <input type="text" name="url"
+                                            class="w-full bg-card border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder-gray-600"
+                                            placeholder="https://www.youtube.com/watch?v=..." required>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label
+                                            class="text-xs font-semibold uppercase tracking-wider text-gray-500">Analysis
+                                            Method</label>
+                                        <div class="relative">
+                                            <select name="analysis_method" id="analysis-method"
+                                                class="w-full bg-card border border-border rounded-lg px-4 py-3 appearance-none focus:outline-none focus:border-accent transition-all">
+                                                <option value="ai">AI Content Analysis (Gemini/GPT)</option>
+                                                <option value="replayed">YouTube Most Replayed Heatmap</option>
+                                            </select>
+                                            <div class="absolute right-4 top-3.5 pointer-events-none text-gray-500">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">API
+                                            Key</label>
+                                        <input type="password" name="api_key" id="api-key-input"
+                                            class="w-full bg-card border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent transition-all placeholder-gray-600"
+                                            placeholder="sk-...">
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label
+                                            class="text-xs font-semibold uppercase tracking-wider text-gray-500">Model</label>
+                                        <div class="relative">
+                                            <select name="model"
+                                                class="w-full bg-card border border-border rounded-lg px-4 py-3 appearance-none focus:outline-none focus:border-accent transition-all">
+                                                <optgroup label="Kie.ai (Google/OpenAI)">
+                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                                                    <option value="gpt-4o">GPT-4o</option>
+                                                </optgroup>
+                                                <optgroup label="Perplexity AI">
+                                                    <option value="sonar-pro">Sonar Pro</option>
+                                                    <option value="sonar-reasoning">Sonar Reasoning (R1)</option>
+                                                </optgroup>
+                                            </select>
+                                            <div class="absolute right-4 top-3.5 pointer-events-none text-gray-500">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <label
+                                            class="text-xs font-semibold uppercase tracking-wider text-gray-500">Watermark</label>
+                                        <input type="text" name="watermark"
+                                            class="w-full bg-card border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent transition-all placeholder-gray-600"
+                                            placeholder="@YourChannel">
+                                    </div>
+
+                                    <div class="flex items-center h-full pt-6">
+                                        <label class="flex items-center gap-3 cursor-pointer group">
+                                            <div class="relative">
+                                                <input type="checkbox" name="burn_subtitle" id="burn-subtitle-check"
+                                                    checked class="sr-only peer">
+                                                <div
+                                                    class="w-10 h-6 bg-border rounded-full peer peer-checked:bg-accent transition-colors">
+                                                </div>
+                                                <div
+                                                    class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-4">
+                                                </div>
+                                            </div>
+                                            <span
+                                                class="text-sm font-medium group-hover:text-white transition-colors">Burn
+                                                Subtitles</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <button type="submit"
+                                    class="w-full py-4 mt-4 bg-gradient-to-r from-accent to-pink-600 rounded-xl font-bold text-white shadow-lg shadow-accent/20 hover:shadow-accent/40 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-3">
+                                    <span class="spinner hidden"></span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                                        class="w-5 h-5">
+                                        <path fill-rule="evenodd"
+                                            d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 01.75.75c0 5.056-2.383 9.555-6.084 12.436h.008c.366.031.73.076 1.08.138 1.517.27 2.942.846 4.165 1.655l-2.047 2.047a7.135 7.135 0 00-3.231-1.25 22.52 22.52 0 00-1.09-.138c-.366-.031-.73-.047-1.08-.047s-.714.016-1.08.047a22.52 22.52 0 00-1.09.138 7.135 7.135 0 00-3.231 1.25l-2.047-2.047a9.38 9.38 0 014.165-1.655c.35-.062.714-.107 1.08-.138h.008c3.701-2.881 6.084-7.38 6.084-12.436V1.5H9.315zM7.5 12.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zM3 12a3 3 0 100 6 3 3 0 000-6z"
+                                            clip-rule="evenodd" />
+                                    </svg>
+                                    START AUTOMATION
+                                </button>
+                            </form>
+
+                            <!-- Progress Bar -->
+                            <div id="progress-section"
+                                class="hidden mt-8 p-4 bg-black/30 rounded-lg border border-white/5">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span id="progress-step" class="text-accent font-bold text-sm">Step 0/5</span>
+                                    <span id="progress-percent" class="text-xs text-gray-400">0%</span>
+                                </div>
+                                <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                                    <div id="progress-bar"
+                                        class="h-full bg-gradient-to-r from-accent to-pink-500 w-0 transition-all duration-300">
+                                    </div>
+                                </div>
+                                <p id="progress-status" class="text-xs text-gray-500 mt-2 font-mono">Initializing...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Download Tab -->
+                <section class="tab hidden" id="download">
+                    <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Download Video
+                    </h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="download-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">YouTube
+                                    URL</label>
+                                <input type="text" name="url"
+                                    class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                    required>
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Download
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Download Subtitle Tab -->
+                <section class="tab hidden" id="download-sub">
+                    <h2 class="text-2xl font-bold mb-6">Download Subtitle</h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="download-sub-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">YouTube
+                                    URL</label>
+                                <input type="text" name="url"
+                                    class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                    required>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label
+                                        class="text-xs font-semibold uppercase tracking-wider text-gray-500">Language</label>
+                                    <input type="text" name="lang" value="id"
+                                        class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Auto
+                                        Generated</label>
+                                    <select name="auto"
+                                        class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent">
+                                        <option value="true">Yes</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Download Subtitle
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Analyze Tab -->
+                <section class="tab hidden" id="analyze">
+                    <h2 class="text-2xl font-bold mb-6">Analyze Subtitle</h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="analyze-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Subtitle
+                                    File (.vtt)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="file"
+                                        class="flex-1 bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                    <button type="button" onclick="showFilePicker('analyze', 'file', '.vtt')"
+                                        class="px-4 py-3 bg-hover border border-border rounded-lg hover:bg-border transition-colors">📂</button>
+                                </div>
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Analyze
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Auto Clip Tab -->
+                <section class="tab hidden" id="auto-clip">
+                    <h2 class="text-2xl font-bold mb-6">Auto Clip AI</h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="auto-clip-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Subtitle
+                                    File (.vtt)</label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="file"
+                                        class="flex-1 bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                    <button type="button" onclick="showFilePicker('auto-clip', 'file', '.vtt')"
+                                        class="px-4 py-3 bg-hover border border-border rounded-lg hover:bg-border transition-colors">📂</button>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">API
+                                    Key</label>
+                                <input type="password" name="api_key"
+                                    class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent">
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Generate Chapters
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Clip Tab -->
+                <section class="tab hidden" id="clip">
+                    <h2 class="text-2xl font-bold mb-6">Clip Video</h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="clip-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Video
+                                    File</label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="video" id="clip-video-text"
+                                        class="flex-1 bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        readonly required>
+                                    <input type="file" id="clip-video-file" accept=".mp4,.webm,.mkv" class="hidden"
+                                        onchange="handleFileSelect(this, 'clip-video-text')">
+                                    <button type="button" onclick="document.getElementById('clip-video-file').click()"
+                                        class="px-4 py-3 bg-hover border border-border rounded-lg hover:bg-border transition-colors">📂</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Start
+                                        Time</label>
+                                    <input type="text" name="start" placeholder="00:00:00"
+                                        class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">End
+                                        Time</label>
+                                    <input type="text" name="end" placeholder="00:01:30"
+                                        class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Output
+                                    Filename</label>
+                                <input type="text" name="output" placeholder="clip_output.mp4"
+                                    class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                    required>
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Clip Video
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Extract Tab -->
+                <section class="tab hidden" id="extract">
+                    <h2 class="text-2xl font-bold mb-6">Extract Subtitle</h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="extract-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Subtitle
+                                    File</label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="subtitle" id="extract-subtitle-text"
+                                        class="flex-1 bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        readonly required>
+                                    <input type="file" id="extract-subtitle-file" accept=".vtt,.srt" class="hidden"
+                                        onchange="handleFileSelect(this, 'extract-subtitle-text')">
+                                    <button type="button"
+                                        onclick="document.getElementById('extract-subtitle-file').click()"
+                                        class="px-4 py-3 bg-hover border border-border rounded-lg hover:bg-border transition-colors">📂</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-2">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Start
+                                        Time</label>
+                                    <input type="text" name="start" placeholder="00:00:00"
+                                        class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">End
+                                        Time</label>
+                                    <input type="text" name="end" placeholder="00:01:30"
+                                        class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        required>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Output
+                                    Filename</label>
+                                <input type="text" name="output" placeholder="clip.srt"
+                                    class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                    required>
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Extract
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Burn Tab -->
+                <section class="tab hidden" id="burn">
+                    <h2 class="text-2xl font-bold mb-6">Burn Subtitle</h2>
+                    <div class="bg-card border border-border rounded-xl p-6">
+                        <form id="burn-form" class="space-y-6">
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Video
+                                    File</label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="video" id="burn-video-text"
+                                        class="flex-1 bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        readonly required>
+                                    <input type="file" id="burn-video-file" accept=".mp4,.webm,.mkv" class="hidden"
+                                        onchange="handleFileSelect(this, 'burn-video-text')">
+                                    <button type="button" onclick="document.getElementById('burn-video-file').click()"
+                                        class="px-4 py-3 bg-hover border border-border rounded-lg hover:bg-border transition-colors">📂</button>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Subtitle
+                                    File</label>
+                                <div class="flex gap-2">
+                                    <input type="text" name="subtitle" id="burn-subtitle-text"
+                                        class="flex-1 bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                        readonly required>
+                                    <input type="file" id="burn-subtitle-file" accept=".srt" class="hidden"
+                                        onchange="handleFileSelect(this, 'burn-subtitle-text')">
+                                    <button type="button"
+                                        onclick="document.getElementById('burn-subtitle-file').click()"
+                                        class="px-4 py-3 bg-hover border border-border rounded-lg hover:bg-border transition-colors">📂</button>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-xs font-semibold uppercase tracking-wider text-gray-500">Output
+                                    Filename</label>
+                                <input type="text" name="output" placeholder="final.mp4"
+                                    class="w-full bg-hover border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent"
+                                    required>
+                            </div>
+                            <button type="submit"
+                                class="btn-primary w-full py-3 bg-accent hover:bg-accent-hover rounded-lg font-bold transition-colors flex justify-center items-center gap-2">
+                                <span class="spinner hidden"></span>
+                                Burn Subtitle
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <div class="h-8"></div> <!-- Spacer -->
+            </div>
+        </div>
+
+        <!-- Console Panel (Fixed Bottom) -->
+        <div class="h-48 border-t border-border bg-card flex flex-col flex-shrink-0">
+            <div class="flex justify-between items-center px-4 py-2 bg-hover border-b border-border">
+                <span class="text-xs font-mono text-gray-400 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                        </path>
+                    </svg>
+                    CONSOLE OUTPUT
+                </span>
+                <button onclick="clearConsole()"
+                    class="text-xs text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-border transition-colors">CLEAR</button>
+            </div>
+            <pre id="console-output"
+                class="flex-1 p-4 overflow-y-auto font-mono text-xs text-gray-400 whitespace-pre-wrap selection:bg-accent selection:text-white">Siap digunakan...</pre>
+        </div>
     </main>
 
-    <!-- File Browser Panel -->
-    <aside class="file-panel" id="file-panel">
-        <div class="file-panel-header">
-            <h3>📁 Files</h3>
-            <button onclick="closeFilePicker()" class="btn-close">✕</button>
+    <!-- File Picker Modal (Ported to Tailwind) -->
+    <div id="file-panel"
+        class="fixed inset-y-0 right-0 w-80 bg-card border-l border-border transform translate-x-full transition-transform duration-300 z-50 flex flex-col shadow-2xl">
+        <div class="flex justify-between items-center p-4 border-b border-border">
+            <h3 class="font-bold">Select File</h3>
+            <button onclick="closeFilePicker()" class="text-gray-500 hover:text-white p-1 rounded-md hover:bg-hover">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                </svg>
+            </button>
         </div>
-        <div class="file-path" id="current-path"></div>
-        <div class="file-list" id="file-list"></div>
-    </aside>
+        <div class="p-3 bg-hover text-xs text-gray-400 break-all border-b border-border" id="current-path"></div>
+        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="file-list"></div>
     </div>
 
+    <!-- Scripts -->
     <script src="/static/script.js"></script>
+    <script src="/static/ui_toggle.js"></script>
+    <script>
+        // Inline script to handle UI logic that might have been in CSS
+        const tabs = document.querySelectorAll('[data-tab]');
+        const panels = document.querySelectorAll('.tab');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs
+                tabs.forEach(t => t.classList.remove('active', 'text-white', 'bg-hover'));
+                tabs.forEach(t => t.querySelector('svg').classList.remove('text-accent'));
+
+                // Add active class to clicked tab
+                tab.classList.add('active', 'text-white', 'bg-hover');
+                tab.querySelector('svg').classList.add('text-accent');
+
+                // Hide all panels
+                panels.forEach(p => p.classList.add('hidden'));
+
+                // Show target panel
+                const targetId = tab.getAttribute('data-tab');
+                document.getElementById(targetId).classList.remove('hidden');
+            });
+        });
+    </script>
 </body>
 
 </html>

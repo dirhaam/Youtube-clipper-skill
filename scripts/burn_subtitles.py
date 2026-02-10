@@ -151,61 +151,90 @@ def burn_subtitles(
     # 验证输入文件
     if not video_path.exists():
         raise FileNotFoundError(f"Video file not found: {video_path}")
-    if not subtitle_path.exists():
+    
+    burn_subs = True
+    if str(subtitle_path).lower() == 'none':
+        burn_subs = False
+    elif not subtitle_path.exists():
         raise FileNotFoundError(f"Subtitle file not found: {subtitle_path}")
 
-    # 检测 FFmpeg
+    # 检测 FFmpeg (仅当需要烧录字幕时才强制检查 libass，如果只是 watermark 可能不需要 full libass? 
+    # 其实 drawtext 也通常包含在标准 build 中，但为了安全起见保持检查，或者如果不需要字幕跳过 libass 检查)
     if ffmpeg_path is None:
         ffmpeg_info = detect_ffmpeg_variant()
-
+        
+        # 如果不烧录字幕，其实不需要 libass，但为了简单起见，且通常用户已安装，我们暂不放宽检查
+        # 除非确认 standard ffmpeg 有 drawtext 但没 libass
+        
         if ffmpeg_info['type'] == 'none':
             install_ffmpeg_full_guide()
             raise RuntimeError("FFmpeg not found")
 
-        if not ffmpeg_info['has_libass']:
+        # Only enforce libass if we are actually burning subtitles
+        if burn_subs and not ffmpeg_info['has_libass']:
             install_ffmpeg_full_guide()
             raise RuntimeError("FFmpeg does not support libass (subtitles filter)")
 
         ffmpeg_path = ffmpeg_info['path']
 
-    print(f"\n🎬 烧录字幕到视频...")
+    print(f"\n🎬 处理视频 (字幕: {'✅' if burn_subs else '❌'}, 水印: {'✅' if watermark_text else '❌'})...")
     print(f"   视频: {video_path.name}")
-    print(f"   字幕: {subtitle_path.name}")
+    if burn_subs:
+        print(f"   字幕: {subtitle_path.name}")
     print(f"   输出: {output_path.name}")
     if watermark_text:
         print(f"   Watermark: {watermark_text}")
     print(f"   FFmpeg: {ffmpeg_path}")
 
-    # 创建临时目录（解决路径空格问题）
+    # 创建临时目录
     temp_dir = tempfile.mkdtemp(prefix='youtube_clipper_')
     print(f"   使用临时目录: {temp_dir}")
 
     try:
-        # 复制文件到临时目录（路径无空格）
+        # 复制文件到临时目录
         temp_video = os.path.join(temp_dir, 'video.mp4')
-        temp_subtitle = os.path.join(temp_dir, 'subtitle.srt')
         temp_output = os.path.join(temp_dir, 'output.mp4')
-
-        print(f"   复制文件到临时目录...")
+        
         shutil.copy(video_path, temp_video)
-        shutil.copy(subtitle_path, temp_subtitle)
+        
+        if burn_subs:
+            temp_subtitle = os.path.join(temp_dir, 'subtitle.srt')
+            shutil.copy(subtitle_path, temp_subtitle)
 
         # 构建 FFmpeg 命令
-        # 使用 subtitles 滤镜烧录字幕
-        filter_complex = f"subtitles=subtitle.srt:force_style='FontSize={font_size},MarginV={margin_v}'"
+        filters = []
+        
+        if burn_subs:
+            filters.append(f"subtitles=subtitle.srt:force_style='FontSize={font_size},MarginV={margin_v}'")
         
         # Add Watermark if provided
         if watermark_text:
             # Escape text for ffmpeg
             safe_text = watermark_text.replace(":", "\\:").replace("'", "'")
             
-            # drawtext filter: 
-            # Position: Center (x=(w-text_w)/2, y=(h-text_h)/2)
-            # Size: 50 (Large)
-            # Color: White 30% opacity (0.3) to be subtle but visible
-            # Shadow: Black, offset 3px
-            watermark_filter = f"drawtext=text='{safe_text}':x=(w-text_w)/2:y=(h-text_h)/2:fontsize=50:fontcolor=white@0.3:shadowcolor=black@0.5:shadowx=3:shadowy=3"
-            filter_complex = f"{filter_complex},{watermark_filter}"
+            # Platform-specific font path
+            font_file = ""
+            if platform.system() == 'Windows':
+                font_path = "C:/Windows/Fonts/arial.ttf"
+                if os.path.exists(font_path):
+                    font_file = f":fontfile='{font_path.replace(':', '\\:')}'"
+            elif platform.system() == 'Darwin':
+                font_path = "/System/Library/Fonts/Helvetica.ttc"
+                if os.path.exists(font_path):
+                    font_file = f":fontfile='{font_path}'"
+            
+            watermark_filter = f"drawtext=text='{safe_text}'{font_file}:x=(w-text_w)/2:y=(h-text_h)/2:fontsize=50:fontcolor=white@0.3:shadowcolor=black@0.5:shadowx=3:shadowy=3"
+            filters.append(watermark_filter)
+
+        if not filters:
+            # No filters, just copy? Or error?
+            # If user script called this, they likely expect processing. 
+            # If no subs and no watermark, just copy input to output?
+            print("   ⚠️ 无需处理 (无字幕且无水印)，直接复制...")
+            shutil.copy(video_path, output_path)
+            return str(output_path)
+
+        filter_complex = ",".join(filters)
 
         # 注意：这里使用相对路径，稍后会在 cwd=temp_dir 下运行
         cmd = [

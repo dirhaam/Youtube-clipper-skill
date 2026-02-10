@@ -28,28 +28,49 @@ def generate_chapters(vtt_file, api_key, model="gpt-4o", base_url="https://api.k
         base_url=base_url
     )
 
+    # Load config (optional target duration, but prioritize content)
+    from dotenv import load_dotenv
+    load_dotenv()
+    target_duration_env = os.getenv("TARGET_CHAPTER_DURATION")
+    
+    # If environment variable is set, use it as a "soft" target, otherwise default to dynamic
+    if target_duration_env:
+        duration_guideline = f"aim for approximately {target_duration_env} seconds, but prioritize the complete story arc."
+    else:
+        duration_guideline = "Length should be determined by the content itself (typically 15s to 3 mins). Do not cut off early."
+
     # 3. Prompt
-    prompt = """
-    Analyze the following VTT subtitle transcript carefully.
-    Identify 10-15 distinct, interesting chapters or highlights that would make great short clips for social media.
+    prompt = f"""
+    You are an expert video editor specializing in YouTube Shorts, TikTok, and Instagram Reels.
+    Your task is to analyze the following transcript and extract ALL clips that have high viral potential (Score > 7).
+    
+    Do NOT limit the number of clips. If there are 20 good moments, extract all 20.
+    
+    Look for:
+    - 🤣 Laughter, funny jokes, or fails (Look for [Laughter] tags or haha)
+    - ⚡ Fast-paced, passionate speech or arguments
+    - 🤯 Mind-blowing facts or realizations
+    - 🔥 Heated debates or controversial opinions
+    - 😢 Emotional or inspiring stories
     
     IMPORTANT RULES:
-    1. Each clip MUST be at least 30-60 seconds long to capture full context
-    2. Include the COMPLETE conversation/story - don't cut in the middle of a sentence or idea
-    3. Start a few seconds BEFORE the interesting moment (for context)
-    4. End a few seconds AFTER the punchline/conclusion (for impact)
-    5. Focus on: funny moments, emotional moments, surprising reveals, key insights, or viral-worthy content
+    1. **Hook**: The clip MUST start with a strong hook (an interesting sentence or action) to grab attention immediately.
+    2. **Context**: Include just enough context before the hook so it makes sense, but keep it tight.
+    3. **Payoff**: The clip MUST end after the punchline, reaction, or conclusion. Do not cut early!
+    4. **Duration**: {duration_guideline}
+    5. **Virality Score**: Rate each clip from 1-10 based on its potential to go viral. BONUS points for heavy laughter or very high energy speech.
     
     Return ONLY a raw JSON array. Do not use Markdown code blocks.
     
     Format:
     [
-        {
-            "title": "Short catchy title for the clip",
-            "start": "00:00:00",
-            "end": "00:01:00",
-            "reason": "Why this segment is interesting and viral-worthy"
-        }
+        {{
+            "title": "Clickbait Title (e.g. 'He Actually Said This?!')",
+            "start": "HH:MM:SS",
+            "end": "HH:MM:SS",
+            "reason": "Why this is viral (Hook/Payoff)",
+            "score": 9.5
+        }}
     ]
 
     Transcript:
@@ -58,76 +79,64 @@ def generate_chapters(vtt_file, api_key, model="gpt-4o", base_url="https://api.k
     print(f"🤖 Sending request to Kie.ai ({model})...", file=sys.stderr)
 
     import time
-    max_retries = 5
+    max_retries = 3 # Reduced retries for speed
     retry_delay = 5
 
     for attempt in range(max_retries):
         try:
+            # Construct messages properly
+            messages = [
+                {"role": "system", "content": "You are a viral content expert. You identify high-retention segments."},
+                {"role": "user", "content": prompt}
+            ]
+
             response = client.chat.completions.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": "You are a professional video editor assistant. You extract viral clips from transcripts."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3
+                messages=messages,
+                temperature=0.4 # Slightly higher for creativity
             )
             
-            # Debug: Print raw response type and content
-            print(f"🔍 Response Type: {type(response)}", file=sys.stderr)
-            try:
-                print(f"🔍 Raw Choices: {response.choices}", file=sys.stderr)
-            except:
-                print("🔍 Could not print choices", file=sys.stderr)
+            # Debug
+            # print(f"🔍 Response: {response}", file=sys.stderr)
 
-            # Validate response - if invalid, retry
             if not response.choices:
-                print(f"⚠️ Response has no choices (Attempt {attempt+1}/{max_retries}). Retrying in {retry_delay}s...", file=sys.stderr)
-                print(f"   Debug: {response}", file=sys.stderr)
+                print(f"⚠️ Response has no choices (Attempt {attempt+1}/{max_retries}).", file=sys.stderr)
                 time.sleep(retry_delay)
-                retry_delay *= 2
-                continue # Retry!
+                continue
 
             result_text = response.choices[0].message.content.strip()
             
-            # Clean up if AI wraps in markdown
-            if result_text.startswith("```json"):
-                result_text = result_text.replace("```json", "").replace("```", "")
-            elif result_text.startswith("```"):
-                result_text = result_text.replace("```", "")
+            # Clean up Markdown
+            result_text = result_text.replace("```json", "").replace("```", "")
                 
             try:
                 chapters = json.loads(result_text)
-                print(f"✅ Successfully generated {len(chapters)} chapters", file=sys.stderr)
+                
+                # Filter low quality clips if possible (e.g. score < 7)
+                # But let's keep all for now and just sort by score
+                if isinstance(chapters, list) and len(chapters) > 0 and 'score' in chapters[0]:
+                    chapters.sort(key=lambda x: x.get('score', 0), reverse=True)
+                
+                print(f"✅ Successfully extracted {len(chapters)} viral clips", file=sys.stderr)
                 return {
                     "success": True, 
                     "chapters": chapters,
                     "raw_response": result_text
                 }
             except json.JSONDecodeError:
-                 print(f"⚠️ JSON Decode Error (Attempt {attempt+1}/{max_retries}). Retrying...", file=sys.stderr)
-                 print(f"   Raw Text: {result_text[:200]}...", file=sys.stderr)
+                 print(f"⚠️ JSON Decode Error. Text: {result_text[:100]}...", file=sys.stderr)
                  time.sleep(retry_delay)
-                 retry_delay *= 2
-                 continue # Retry on JSON error too
+                 continue 
 
         except Exception as e:
             error_str = str(e)
-            # Check for maintenance or server errors (500, 502, 503, 529)
-            if "500" in error_str or "502" in error_str or "503" in error_str or "maintained" in error_str.lower() or "timeout" in error_str.lower():
-                if attempt < max_retries - 1:
-                    print(f"⚠️ Server Error (Attempt {attempt+1}/{max_retries}). Retrying in {retry_delay}s...", file=sys.stderr)
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                    continue
-            
-            # Non-retryable errors: fail immediately
             print(f"❌ API Error: {error_str}", file=sys.stderr)
-            import traceback
-            traceback.print_exc()
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                continue
             return {"success": False, "error": str(e)}
 
-    # If loop finishes without return (retries exhausted)
-    return {"success": False, "error": "Max retries exceeded or API maintenance"}
+    return {"success": False, "error": "Max retries exceeded"}
 
 
 

@@ -1,0 +1,5 @@
+flask
+openai
+yt-dlp
+pysrt
+python-dotenv

@@ -17,7 +17,7 @@ SCRIPTS_DIR = Path(__file__).parent.resolve()
 
 def run_command_stream(script, args):
     """Run a script and stream output to console. Returns True if success."""
-    cmd = ["py", str(SCRIPTS_DIR / script)] + args
+    cmd = [sys.executable, str(SCRIPTS_DIR / script)] + args
     print(f"\n▶️ Running {script}...")
     
     env = os.environ.copy()
@@ -44,7 +44,7 @@ def run_command_stream(script, args):
 
 def run_command_capture(script, args):
     """Run a script, stream stderr to console, but capture stdout. Returns stdout string or None."""
-    cmd = ["py", str(SCRIPTS_DIR / script)] + args
+    cmd = [sys.executable, str(SCRIPTS_DIR / script)] + args
     print(f"\n▶️ Running {script}...")
     
     env = os.environ.copy()
@@ -77,11 +77,13 @@ def main():
     model = sys.argv[3] if len(sys.argv) > 3 else "gemini-2.0-flash"
     watermark = sys.argv[4] if len(sys.argv) > 4 else ""
     burn_subtitle_flag = (sys.argv[5].lower() == "true") if len(sys.argv) > 5 else True
+    analysis_method = sys.argv[6] if len(sys.argv) > 6 else "ai"
 
     print("🚀 Starting Full Automation Pipeline")
     print(f"Target: {url}")
     print(f"Model: {model}")
     print(f"Burn Subtitle: {burn_subtitle_flag}")
+    print(f"Method: {analysis_method}")
 
     # Create valid filename safe video ID for folder
     # We'll use the ID we get from yt-dlp
@@ -141,13 +143,17 @@ def main():
             subtitle_file = found[0]
             print(f"   Using subtitle: {subtitle_file}")
         else:
-            print("❌ No subtitle found. Cannot proceed with auto-analysis.")
-            sys.exit(1)
+             if analysis_method == 'ai':
+                print("❌ No subtitle found. Cannot proceed with AI analysis.")
+                sys.exit(1)
+             else:
+                print("⚠️ No subtitle found. Proceeding with Replay analysis (subtitle not strictly required).")
 
-    # 3. Auto Analyze (Kie.ai)
-    print("\n[ Step 3/5 ] Analyze Content with AI...")
+
+    # 3. Analyze Content (AI or Replayed)
+    print(f"\n[ Step 3/5 ] Analyze Content ({analysis_method.upper()})...")
     
-    chapters_cache_file = project_dir / "chapters.json"
+    chapters_cache_file = project_dir / f"chapters_{analysis_method}.json"
     chapters = []
     
     if chapters_cache_file.exists():
@@ -159,9 +165,18 @@ def main():
             print(f"   ❌ Failed to load cache: {e}. Re-running analysis.")
     
     if not chapters:
-        # auto_mapper.py takes file path
-        # Use run_command_capture to get JSON output, but logs will stream to console
-        output = run_command_capture("auto_mapper.py", [str(subtitle_file), api_key, model])
+        output = None
+        
+        if analysis_method == 'replayed':
+            # Use extract_most_replayed.py
+            # Usage: python extract_most_replayed.py <youtube_url> [num_peaks] [min_duration]
+            # We want default num_peaks=30 (High limit), min_duration=15
+            output = run_command_capture("extract_most_replayed.py", [url, "30", "15"])
+            
+        else: # Default 'ai'
+            # Use auto_mapper.py
+            output = run_command_capture("auto_mapper.py", [str(subtitle_file), api_key, model])
+
         if not output:
              # Error handled inside run_command logging
              sys.exit(1)
@@ -193,7 +208,7 @@ def main():
             elif isinstance(data, dict):
                  # Check for explicit failure
                  if not data.get('success', True):
-                     print(f"❌ AI Analysis Failed: {data.get('error', 'Unknown Error')}")
+                     print(f"❌ Analysis Failed: {data.get('error', 'Unknown Error')}")
                      if 'debug' in data:
                          print(f"Debug Info: {data['debug']}")
                      sys.exit(1)
@@ -219,14 +234,14 @@ def main():
                     print(f"❌ Invalid chapter format at index {i}: {ch} (Expected dict)")
                     sys.exit(1)
                 
-            print(f"   ✅ AI identified {len(chapters)} highlights.")
+            print(f"   ✅ Identified {len(chapters)} highlights.")
             
             # Save to cache
             with open(chapters_cache_file, 'w') as f:
                 json.dump(chapters, f, indent=2)
     
         except Exception as e:
-            print(f"❌ Failed to parse AI output: {e}")
+            print(f"❌ Failed to parse output: {e}")
             print(f"Raw output: {output}")
             sys.exit(1)
 
@@ -267,9 +282,14 @@ def main():
         if not run_command_stream("extract_subtitle_clip.py", [str(subtitle_file), chap['start'], chap['end'], str(sub_clip_file)]):
             continue
         
-        # Burn Subtitle (optional)
-        if burn_subtitle_flag:
-            burn_args = [str(clip_file), str(sub_clip_file), str(final_file)]
+        # Burn Subtitle or Watermark (optional)
+        should_process = burn_subtitle_flag or bool(watermark)
+        
+        if should_process:
+            # Determine subtitle path: 'none' if we only want watermark
+            sub_path_arg = str(sub_clip_file) if burn_subtitle_flag else "none"
+            
+            burn_args = [str(clip_file), sub_path_arg, str(final_file)]
             if watermark:
                  burn_args.extend(["24", "30", watermark])
             
@@ -282,7 +302,7 @@ def main():
             })
         else:
             # Skip burning, final file is the clip itself
-            print(f"      ⏭️ Skipping burn (disabled). Clip saved as: {clip_file.name}")
+            print(f"      ⏭️ Skipping burn/watermark. Clip saved as: {clip_file.name}")
             processed_files.append({
                 "title": chap['title'],
                 "file": str(clip_file)
